@@ -17,4 +17,4 @@ jobs:
       - name: Package and release
         uses: BigWigsMods/packager@master
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_OAUTH }}
+          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
