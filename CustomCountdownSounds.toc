@@ -1,0 +1,48 @@
+## Interface:  120005, 120007, 120100
+## Title: Custom Countdown Sounds
+## Notes: Private aura sounds for Midnight bosses.
+## Author: Knofle
+## Version: 0.5.11
+## SavedVariables: CCS_DB
+## IconTexture: Interface\AddOns\CustomCountdownSounds\icon.tga
+
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\LibSharedMedia-3.0\LibSharedMedia-3.0.lua
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Libs\AceGUI-3.0\AceGUI-3.0.xml
+Libs\AceDB-3.0\AceDB-3.0.lua
+Libs\AceDBOptions-3.0\AceDBOptions-3.0.lua
+Libs\AceConfig-3.0\AceConfig-3.0.xml
+Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
+
+core.lua
+ui.lua
+
+# 12.0.x raids
+data\r_vs_dr_mqd.lua
+data\r_sporefall.lua
+
+# 12.1.0 raid
+data\r_venomous_abyss.lua
+data\r_the_tidebound_grotto.lua
+
+# 12.0.x dungeons
+data\m_magisters_terrace.lua
+data\m_maisara_caverns.lua
+data\m_nexus_point_xenas.lua
+data\m_windrunner_spire.lua
+data\m_algethar_academy.lua
+data\m_pit_of_saron.lua
+data\m_seat_of_the_triumvirate.lua
+data\m_skyreach.lua
+
+# 12.1.0 dungeons
+data\m_murder_row.lua
+data\m_den_of_nalorakk.lua
+data\m_blinding_vale.lua
+data\m_voidscar_arena.lua
+data\m_altar_of_fangs.lua
+data\m_ruby_life_pools.lua
+data\m_temple_of_sethraliss.lua
+data\m_kings_rest.lua
