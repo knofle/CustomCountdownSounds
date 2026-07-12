@@ -10,9 +10,12 @@ local entries = {
         boss    = "Nymrissa Wavecaller",
         bossKey = "nymrissa_wavecaller",
         section = "|cffae3df5Nymrissa Wavecaller|r",
+        journalInstanceID = 1317,
+        journalEncounterID = 2849,         
         abilities = {
             { key = "lingering_frost",              label = "Lingering Frost",              privateID = 1257654,                soundH = nil,                               soundM = nil,                            advanced = true    }, -- Dot and sliding debuff.
             { key = "tidepiercers_rush",            label = "Tidepiercer's Rush",           privateID = 1258677,                soundH = nil,                               soundM = nil,                            advanced = true    }, -- Dot 
+            { key = "tide_wave",                    label = "Tide Wave",                    privateID = 1298157,                soundH = nil,                               soundM = nil,                            advanced = true    }, -- Dunno           
         },
     },
     
