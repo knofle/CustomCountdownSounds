@@ -26,7 +26,7 @@ end
 local basePath = "Interface\\AddOns\\" .. addonName .. "\\sounds\\"
 
 local lsmSounds = {
-    "break","breath","burn","dot","marked","move","soak","spread","targeted","drop","fixate","pull","stack","absorb","debuff","charge","clear","knock","spikes","skull","cross","square","moon","triangle","diamond","star","circle","in","out","right","left"
+    "break","breath","burn","dot","marked","move","soak","spread","targeted","drop","fixate","pull","stack","absorb","debuff","charge","clear","knock","spikes","skull","cross","square","moon","triangle","diamond","star","circle","in","out","right","left","magic","curse","poison","bleed"
 }
 
 for _, name in ipairs(lsmSounds) do
@@ -65,6 +65,9 @@ local function getCurrentDifficulty()
         if difficultyID == 8 or difficultyID == 9 or difficultyID == 23 then
             return "M"
         end
+        -- /plexus test mode: treat any party instance as Mythic so follower
+        -- dungeons work for PTR testing. Resets every reload.
+        if CCS._followerTestMode then return "M" end
     end
     return nil
 end
@@ -81,14 +84,15 @@ CCS.getCurrentDifficulty = getCurrentDifficulty
 --------------------------------------------------
 
 local dbDefaults = {
-    profile = {},
+    profile = {
+        showAllBosses = {},
+    },
     char = {
         minimap              = { minimapPos = 225, hide = false },
         module               = "raid",
         activeDungeon        = "__all__",
         activeRaid           = "__all__",
         customTimerOverride  = false,
-        showAllBosses        = {},
     },
 }
 
@@ -125,12 +129,13 @@ CCS.MplusDungeons = (tocVersion >= 120100) and mplusDungeons_121 or mplusDungeon
 local db
 
 function CCS.GetProfile()
-    if not db then return { warnEnabled={}, warnOverride={}, countdownEnabled={}, countdownOverride={} } end
+    if not db then return { warnEnabled={}, warnOverride={}, countdownEnabled={}, countdownOverride={}, showAllBosses={} } end
     local p = db.profile
     if rawget(p, "warnEnabled")       == nil then rawset(p, "warnEnabled",       {}) end
     if rawget(p, "warnOverride")      == nil then rawset(p, "warnOverride",       {}) end
     if rawget(p, "countdownEnabled")  == nil then rawset(p, "countdownEnabled",   {}) end
     if rawget(p, "countdownOverride") == nil then rawset(p, "countdownOverride",  {}) end
+    if rawget(p, "showAllBosses")     == nil then rawset(p, "showAllBosses",      {}) end
     return p
 end
 
@@ -340,16 +345,30 @@ end
 
 function CCS.GetShowAllBoss(bossKey)
     if not bossKey then return false end
-    return CCS.GetChar().showAllBosses[bossKey] == true
+    return CCS.GetProfile().showAllBosses[bossKey] == true
 end
 
 function CCS.SetShowAllBoss(bossKey, val)
     if not bossKey then return end
-    CCS.GetChar().showAllBosses[bossKey] = val or nil
+    CCS.GetProfile().showAllBosses[bossKey] = val or nil
     CCS.RefreshSounds()
 end
 
--- True unless the ability is advanced and its boss's "Show all" is off.
+-- Opt-in means the user is actively producing sound: at least one of the
+-- warn/countdown ticks is on. Overrides alone don't count — an untick
+-- should hide the ability even if a custom sound was chosen.
+function CCS.IsAbilityOptedIn(key)
+    if not key then return false end
+    local p = CCS.GetProfile()
+    if p.warnEnabled[key] == true then return true end
+    local ce = p.countdownEnabled[key]
+    if ce and (ce.H == true or ce.M == true) then return true end
+    return false
+end
+
+-- Advanced abilities are visible if the boss's "Show non-default" is on
+-- OR if the user has opted them in (any override / enabled tick).
+-- Non-advanced abilities are always active.
 function CCS.IsAbilityActive(abilityKey)
     if not abilityKey then return true end
     if CCS_Spells_Raid then
@@ -357,7 +376,9 @@ function CCS.IsAbilityActive(abilityKey)
             if entry.abilities then
                 for _, ab in ipairs(entry.abilities) do
                     if ab.key == abilityKey then
-                        if ab.advanced and not CCS.GetShowAllBoss(entry.bossKey) then
+                        if ab.advanced
+                           and not CCS.GetShowAllBoss(entry.bossKey)
+                           and not CCS.IsAbilityOptedIn(abilityKey) then
                             return false
                         end
                         return true
@@ -374,7 +395,9 @@ function CCS.IsAbilityActive(abilityKey)
                     if entry.abilities then
                         for _, ab in ipairs(entry.abilities) do
                             if ab.key == abilityKey then
-                                if ab.advanced and not CCS.GetShowAllBoss(entry.bossKey) then
+                                if ab.advanced
+                                   and not CCS.GetShowAllBoss(entry.bossKey)
+                                   and not CCS.IsAbilityOptedIn(abilityKey) then
                                     return false
                                 end
                                 return true
@@ -430,12 +453,13 @@ function CCS.SetCountdownOverride(key, diff, soundKey)
     p.countdownOverride[key][diff] = soundKey
 end
 
--- Iterate abilities for "raid" or "mplus".
+-- Iterate abilities for "raid" or "mplus". Callback receives
+-- (ability, isMplus, bossKey).
 local function iterateModuleSpells(module, fn)
     if module == "raid" then
         for _, entry in ipairs(CCS_Spells_Raid) do
             if entry.abilities then
-                for _, ability in ipairs(entry.abilities) do fn(ability, false) end
+                for _, ability in ipairs(entry.abilities) do fn(ability, false, entry.bossKey) end
             end
         end
     elseif module == "mplus" then
@@ -444,7 +468,7 @@ local function iterateModuleSpells(module, fn)
             if data then
                 for _, entry in ipairs(data) do
                     if entry.abilities then
-                        for _, ability in ipairs(entry.abilities) do fn(ability, true) end
+                        for _, ability in ipairs(entry.abilities) do fn(ability, true, entry.bossKey) end
                     end
                 end
             end
@@ -452,72 +476,14 @@ local function iterateModuleSpells(module, fn)
     end
 end
 
+-- Bulk enable/disable warns.
+--   - Only touches abilities that are visible right now.
+--   - Only touches abilities that have something to enable
+--     (a default warn sound or a user override).
 function CCS.SetAllWarn(val, module)
     module = module or CCS.GetModule()
     local p = CCS.GetProfile()
-    iterateModuleSpells(module, function(ability)
-        local function fieldHasWarn(f)
-            if f == nil then return false end
-            if type(f) == "table" then return f[1] ~= nil end
-            return true
-        end
-        local hasDefault = fieldHasWarn(ability.soundH) or fieldHasWarn(ability.soundM)
-        local hasOverride = p.warnOverride[ability.key] ~= nil
-        -- Bulk-enable skips advanced abilities without an override; bulk-disable still applies.
-        if val and ability.advanced and not hasOverride then return end
-        if not val or hasDefault or hasOverride then
-            p.warnEnabled[ability.key] = val
-        end
-    end)
-end
-
-function CCS.SetAllCD(val, module)
-    module = module or CCS.GetModule()
-    local p = CCS.GetProfile()
-    iterateModuleSpells(module, function(ability, isMplus)
-        local function hasDefault(diff)
-            local s = diff == "M" and ability.soundM or (diff ~= "M" and ability.soundH)
-            return type(s) == "table" and s[2] ~= nil
-        end
-        local function hasOverride(diff)
-            return p.countdownOverride[ability.key] and p.countdownOverride[ability.key][diff] ~= nil
-        end
-        local function isEnabled(diff)
-            return p.countdownEnabled[ability.key] and p.countdownEnabled[ability.key][diff] == true
-        end
-        -- Bulk-enable skips advanced abilities without an override; bulk-disable still applies.
-        local anyOverride = hasOverride("H") or hasOverride("M")
-        if val and ability.advanced and not anyOverride then return end
-        if isMplus then
-            if not val or hasDefault("M") or hasOverride("M") then
-                p.countdownEnabled[ability.key] = p.countdownEnabled[ability.key] or {}
-                p.countdownEnabled[ability.key].M = val
-            elseif not val and isEnabled("M") then
-                p.countdownEnabled[ability.key].M = false
-            end
-        else
-            if ability.soundH ~= nil or hasOverride("H") or isEnabled("H") then
-                if not val or hasDefault("H") or hasOverride("H") then
-                    p.countdownEnabled[ability.key] = p.countdownEnabled[ability.key] or {}
-                    p.countdownEnabled[ability.key].H = val
-                end
-            end
-            if ability.soundM ~= nil or hasOverride("M") or isEnabled("M") then
-                if not val or hasDefault("M") or hasOverride("M") then
-                    p.countdownEnabled[ability.key] = p.countdownEnabled[ability.key] or {}
-                    p.countdownEnabled[ability.key].M = val
-                end
-            end
-        end
-    end)
-end
-
--- Returns "all_on" / "all_off" / "mixed" for the visible abilities' warn flags.
-function CCS.GetBulkWarnState(module)
-    module = module or CCS.GetModule()
-    local p = CCS.GetProfile()
-    local seen, onCount, offCount = 0, 0, 0
-    iterateModuleSpells(module, function(ability)
+    iterateModuleSpells(module, function(ability, _, bossKey)
         local function fieldHasWarn(f)
             if f == nil then return false end
             if type(f) == "table" then return f[1] ~= nil end
@@ -525,12 +491,91 @@ function CCS.GetBulkWarnState(module)
         end
         local hasDefault  = fieldHasWarn(ability.soundH) or fieldHasWarn(ability.soundM)
         local hasOverride = p.warnOverride[ability.key] ~= nil
-        if hasDefault or hasOverride then
-            -- Advanced w/o override can't be bulk-toggled, so don't count it.
-            if ability.advanced and not hasOverride then return end
-            seen = seen + 1
-            if p.warnEnabled[ability.key] then onCount = onCount + 1 else offCount = offCount + 1 end
+        local currentlyOn = p.warnEnabled[ability.key] == true
+        -- Advanced: only touch if visible.
+        if ability.advanced
+           and not CCS.GetShowAllBoss(bossKey)
+           and not CCS.IsAbilityOptedIn(ability.key) then
+            return
         end
+        if val then
+            -- Enable: need something to enable.
+            if hasDefault or hasOverride then
+                p.warnEnabled[ability.key] = true
+            end
+        else
+            -- Disable: also untick tick-only abilities.
+            if hasDefault or hasOverride or currentlyOn then
+                p.warnEnabled[ability.key] = false
+            end
+        end
+    end)
+end
+
+-- Bulk enable/disable countdowns.
+function CCS.SetAllCD(val, module)
+    module = module or CCS.GetModule()
+    local p = CCS.GetProfile()
+    iterateModuleSpells(module, function(ability, isMplus, bossKey)
+        local function hasDefault(diff)
+            local s = diff == "M" and ability.soundM or (diff ~= "M" and ability.soundH)
+            return type(s) == "table" and s[2] ~= nil
+        end
+        local function hasOverride(diff)
+            return p.countdownOverride[ability.key] and p.countdownOverride[ability.key][diff] ~= nil
+        end
+        local function currentlyOn(diff)
+            return p.countdownEnabled[ability.key] and p.countdownEnabled[ability.key][diff] == true
+        end
+        if ability.advanced
+           and not CCS.GetShowAllBoss(bossKey)
+           and not CCS.IsAbilityOptedIn(ability.key) then
+            return
+        end
+        local function apply(diff)
+            if val then
+                if hasDefault(diff) or hasOverride(diff) then
+                    p.countdownEnabled[ability.key] = p.countdownEnabled[ability.key] or {}
+                    p.countdownEnabled[ability.key][diff] = true
+                end
+            else
+                if hasDefault(diff) or hasOverride(diff) or currentlyOn(diff) then
+                    p.countdownEnabled[ability.key] = p.countdownEnabled[ability.key] or {}
+                    p.countdownEnabled[ability.key][diff] = false
+                end
+            end
+        end
+        if isMplus then
+            apply("M")
+        else
+            apply("H")
+            apply("M")
+        end
+    end)
+end
+
+-- Returns "all_on" / "all_off" / "mixed" for the bulk-toggleable warns.
+function CCS.GetBulkWarnState(module)
+    module = module or CCS.GetModule()
+    local p = CCS.GetProfile()
+    local seen, onCount, offCount = 0, 0, 0
+    iterateModuleSpells(module, function(ability, _, bossKey)
+        local function fieldHasWarn(f)
+            if f == nil then return false end
+            if type(f) == "table" then return f[1] ~= nil end
+            return true
+        end
+        local hasDefault  = fieldHasWarn(ability.soundH) or fieldHasWarn(ability.soundM)
+        local hasOverride = p.warnOverride[ability.key] ~= nil
+        local currentlyOn = p.warnEnabled[ability.key] == true
+        if not hasDefault and not hasOverride and not currentlyOn then return end
+        if ability.advanced
+           and not CCS.GetShowAllBoss(bossKey)
+           and not CCS.IsAbilityOptedIn(ability.key) then
+            return
+        end
+        seen = seen + 1
+        if currentlyOn then onCount = onCount + 1 else offCount = offCount + 1 end
     end)
     if seen == 0 then return "all_off" end
     if onCount == seen then return "all_on" end
@@ -538,12 +583,12 @@ function CCS.GetBulkWarnState(module)
     return "mixed"
 end
 
--- Same shape as GetBulkWarnState, for countdown flags.
+-- Same shape, for countdown flags.
 function CCS.GetBulkCDState(module)
     module = module or CCS.GetModule()
     local p = CCS.GetProfile()
     local seen, onCount, offCount = 0, 0, 0
-    iterateModuleSpells(module, function(ability, isMplus)
+    iterateModuleSpells(module, function(ability, isMplus, bossKey)
         local function hasDefault(diff)
             local s = diff == "M" and ability.soundM or ability.soundH
             return type(s) == "table" and s[2] ~= nil
@@ -554,15 +599,16 @@ function CCS.GetBulkCDState(module)
         local function isEnabled(diff)
             return p.countdownEnabled[ability.key] and p.countdownEnabled[ability.key][diff] == true
         end
+        if ability.advanced
+           and not CCS.GetShowAllBoss(bossKey)
+           and not CCS.IsAbilityOptedIn(ability.key) then
+            return
+        end
         local diffs = isMplus and {"M"} or {"H", "M"}
         for _, d in ipairs(diffs) do
-            if hasDefault(d) or hasOverride(d) then
-                if ability.advanced and not hasOverride(d) then
-                    -- advanced w/o override: skip
-                else
-                    seen = seen + 1
-                    if isEnabled(d) then onCount = onCount + 1 else offCount = offCount + 1 end
-                end
+            if hasDefault(d) or hasOverride(d) or isEnabled(d) then
+                seen = seen + 1
+                if isEnabled(d) then onCount = onCount + 1 else offCount = offCount + 1 end
             end
         end
     end)
@@ -633,15 +679,21 @@ local function resolveAbilitySounds(ability, diff)
 end
 
 --------------------------------------------------
--- Private Aura Registration
+-- Aura Registration
 --------------------------------------------------
+
+-- 12.1.0 renamed AddPrivateAuraAppliedSound to AddAuraAppliedSound and lifted
+-- the private-only restriction. Feature-detect so we work on both clients.
+local addAuraSound         = C_UnitAuras.AddAuraAppliedSound    or C_UnitAuras.AddPrivateAuraAppliedSound
+local removeAuraSound      = C_UnitAuras.RemoveAuraAppliedSound or C_UnitAuras.RemovePrivateAuraAppliedSound
+local hasGeneralAuraSounds = C_UnitAuras.AddAuraAppliedSound ~= nil
 
 local handles = {}
 -- Pending work that hit combat/dead lockdown; flushPending() drains them later.
 local pendingRefreshAll = false
 local pendingRefreshKeys = {}
 
--- Protected private-aura APIs are blocked during combat lockdown and while dead.
+-- Protected aura-sound APIs are blocked during combat lockdown and while dead.
 local function canRegister()
     if InCombatLockdown() then return false end
     if UnitIsDeadOrGhost("player") then return false end
@@ -655,7 +707,7 @@ local function unregisterAbility(key)
         return
     end
     for _, id in ipairs(handles[key]) do
-        C_UnitAuras.RemovePrivateAuraAppliedSound(id)
+        removeAuraSound(id)
     end
     handles[key] = nil
 end
@@ -684,11 +736,13 @@ local function registerAbility(ability, diff, bossKey)
         pendingRefreshAll = true
         return
     end
-    -- Advanced abilities are gated by their boss's "Show all" toggle.
-    -- If bossKey is missing, look it up via IsAbilityActive.
+    -- Advanced abilities are gated by "Show non-default" for their boss, or
+    -- by the user having opted in (any tick or override set on the ability).
     if ability.advanced then
         if bossKey then
-            if not CCS.GetShowAllBoss(bossKey) then return end
+            if not CCS.GetShowAllBoss(bossKey) and not CCS.IsAbilityOptedIn(ability.key) then
+                return
+            end
         else
             if not CCS.IsAbilityActive(ability.key) then return end
         end
@@ -696,12 +750,15 @@ local function registerAbility(ability, diff, bossKey)
     local ids = getPrivateIDs(ability, diff)
     if #ids == 0 then return end
 
-    for _, spellID in ipairs(ids) do
-        if not C_UnitAuras.AuraIsPrivate(spellID) then
-            if diff then
-                print("|cffff9900CCS:|r " .. ability.key .. " (spellID " .. spellID .. ") is not a private aura — skipping.")
+    -- Pre-12.1 could only attach sounds to private auras; enforce that here.
+    if not hasGeneralAuraSounds then
+        for _, spellID in ipairs(ids) do
+            if not C_UnitAuras.AuraIsPrivate(spellID) then
+                if diff then
+                    print("|cffff9900CCS:|r " .. ability.key .. " (spellID " .. spellID .. ") is not a private aura — skipping.")
+                end
+                return
             end
-            return
         end
     end
 
@@ -713,7 +770,7 @@ local function registerAbility(ability, diff, bossKey)
 
     for _, spellID in ipairs(ids) do
         for _, path in ipairs(paths) do
-            local id = C_UnitAuras.AddPrivateAuraAppliedSound({
+            local id = addAuraSound({
                 unitToken     = "player",
                 spellID       = spellID,
                 soundFileName = path,
@@ -907,6 +964,18 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         if db.char.minimapHidden ~= nil then
             db.char.minimap.hide = db.char.minimapHidden
             db.char.minimapHidden = nil
+        end
+
+        -- Migrate showAllBosses from db.char to current profile (moved so
+        -- profile save/copy includes it). One-shot: current char's toggles
+        -- carry forward into the profile they were using, then char store
+        -- is cleared so it doesn't overwrite later profile switches.
+        if db.char.showAllBosses then
+            local p = CCS.GetProfile()
+            for k, v in pairs(db.char.showAllBosses) do
+                if p.showAllBosses[k] == nil then p.showAllBosses[k] = v end
+            end
+            db.char.showAllBosses = nil
         end
 
         db.RegisterCallback(CCS, "OnProfileChanged", function()

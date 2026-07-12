@@ -58,6 +58,15 @@ local function stripCheckBorder(cb)
     end
 end
 
+local function setAdvancedCbBorder(cb, isAdvanced)
+    if not cb or not cb._ccsBorder then return end
+    if isAdvanced then
+        cb._ccsBorder:SetBackdropBorderColor(0.35, 0.55, 0.35, 1)
+    else
+        cb._ccsBorder:SetBackdropBorderColor(0.35, 0.35, 0.35, 1)
+    end
+end
+
 local function addTooltip(frame, title, body)
     frame:EnableMouse(true)
     frame:SetScript("OnEnter", function(self)
@@ -663,10 +672,14 @@ local MPLUS_DROPDOWN_X    = MPLUS_CHECKBOX_X + CHECKBOX_SIZE + 4
 
 -- Raid header colors
 local RAID_COLORS = {
+    -- 12.0.x
     ["March on Quel'Danas"] = "|cff6fcf6f",
     ["The Dreamrift"]       = "|cff6aacdc",
     ["The Voidspire"]       = "|cffc17de8",
     ["Sporefall"]           = "|cffb8c777",
+    -- 12.1.0
+    ["The Venomous Abyss"]  = "|cffae3df5",
+    ["The Tidebound Grotto"] = "|cff4dabd7",
 }
 
 ------------------------------------------------------------
@@ -961,6 +974,14 @@ local function acquireRow(scrollChild, idx)
     raidTestBtn:SetScript("OnClick",  function() local a = r._ability; if a then testAbility(a, IsShiftKeyDown() and "H" or "M") end end)
     mplusTestBtn:SetScript("OnClick", function() local a = r._ability; if a then testAbility(a, "M") end end)
 
+    -- If a tick change on an advanced ability makes it no longer visible
+    -- (Show-non-default off and no more ticks on), rebuild so the row hides.
+    local function maybeRebuildForVisibility(a)
+        if a and a.advanced and not CCS.IsAbilityActive(a.key) then
+            if CCS._fullRebuild then CCS._fullRebuild() end
+        end
+    end
+
     warnCB:SetScript("OnClick", function(self)
         withCombatGuard(function()
             local a = r._ability; if not a then return end
@@ -970,6 +991,7 @@ local function acquireRow(scrollChild, idx)
             warnDD:SetEnabled(en)
             refreshWarnDD()
             if CCS._refreshBulkUnderlines then CCS._refreshBulkUnderlines() end
+            maybeRebuildForVisibility(a)
         end)
     end)
     warnDD:SetOnSelect(function(v)
@@ -985,6 +1007,7 @@ local function acquireRow(scrollChild, idx)
             CCS.SetCDEnabled(a.key, "H", self:GetChecked())
             CCS.RefreshAbility(a.key, a); refreshHDD()
             if CCS._refreshBulkUnderlines then CCS._refreshBulkUnderlines() end
+            maybeRebuildForVisibility(a)
         end)
     end)
     hDD:SetOnSelect(function(v)
@@ -1002,6 +1025,7 @@ local function acquireRow(scrollChild, idx)
             CCS.SetCDEnabled(a.key, "M", self:GetChecked())
             CCS.RefreshAbility(a.key, a); refreshMDD()
             if CCS._refreshBulkUnderlines then CCS._refreshBulkUnderlines() end
+            maybeRebuildForVisibility(a)
         end)
     end)
     mDD:SetOnSelect(function(v)
@@ -1019,6 +1043,7 @@ local function acquireRow(scrollChild, idx)
             CCS.SetCDEnabled(a.key, "M", self:GetChecked())
             CCS.RefreshAbility(a.key, a); refreshCdDD()
             if CCS._refreshBulkUnderlines then CCS._refreshBulkUnderlines() end
+            maybeRebuildForVisibility(a)
         end)
     end)
     cdDD:SetOnSelect(function(v)
@@ -1123,6 +1148,13 @@ local function acquireRow(scrollChild, idx)
 
             refreshHDD(); refreshMDD()
         end
+
+        -- Green border on the tickboxes marks advanced (non-default) abilities.
+        local adv = ability.advanced == true
+        setAdvancedCbBorder(warnCB, adv)
+        setAdvancedCbBorder(hCB, adv)
+        setAdvancedCbBorder(mCB, adv)
+        setAdvancedCbBorder(cdCB, adv)
     end
 
     -- Resync controls from DB without repositioning.
@@ -1205,9 +1237,9 @@ local function acquireShowAll(scrollChild, idx)
         stripCheckBorder(cb)
         cb:SetPoint("LEFT", frame, "LEFT", INDENT, 0)
         local lbl = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-        lbl:SetText("|cffaaaaaa Show all|r")
+        lbl:SetText("|cffaaaaaa Show non-default|r")
         lbl:SetPoint("LEFT", cb, "RIGHT", 2, 0)
-        addTooltip(cb, "Show all", "Show additional trackable private auras for this boss that have no default values set.")
+        addTooltip(cb, "Show non-default", "Show additional trackable auras for this boss that have no default warning or countdown set.")
         frame._cb  = cb
         frame._lbl = lbl
         _pool.showAlls[idx] = frame
@@ -1253,7 +1285,7 @@ end
 
 local function BuildFramePool(scrollChild)
     local rowIdx  = 0
-    local hdrCount, raidCount, sepCount, showAllCount = 0, 0, 0, 0
+    local hdrCount, raidCount, sepCount = 0, 0, 0
     for _, entry in ipairs(CCS_Spells) do
         if entry.abilities then
             hdrCount = hdrCount + 1
@@ -1263,17 +1295,11 @@ local function BuildFramePool(scrollChild)
                 rowIdx = rowIdx + 1
                 acquireRow(scrollChild, rowIdx)
             end
-            if entry.bossKey then
-                local hasAdv = false
-                for _, ab in ipairs(entry.abilities) do if ab.advanced then hasAdv = true; break end end
-                if hasAdv then showAllCount = showAllCount + 1 end
-            end
         end
     end
     for i = 1, hdrCount    do acquireHeader(scrollChild,  i) end
     for i = 1, raidCount   do acquireRaidBg(scrollChild,  i) end
     for i = 1, sepCount    do acquireSep(scrollChild,     i) end
-    for i = 1, showAllCount do acquireShowAll(scrollChild, i) end
     acquireDivider(scrollChild)
 end
 
@@ -1348,22 +1374,87 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
         hdr:ClearAllPoints()
         hdr:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", INDENT, y)
         hdr:SetSize(totalWidth - INDENT * 2, SECTION_HEADER_H)
-        local sectionText = entry.section or entry.boss
-        if entry._color and sectionText then
-            sectionText = entry._color .. sectionText .. "|r"
-        end
-        hdr._lbl:SetText(sectionText)
-        hdr:Show(); y = y - SECTION_HEADER_H
 
         local bossKey = entry.bossKey
         local hasAdvanced = false
         for _, ab in ipairs(entry.abilities) do
             if ab.advanced then hasAdvanced = true; break end
         end
-        local showAll = not bossKey or not hasAdvanced or CCS.GetShowAllBoss(bossKey)
+        local showAll = not bossKey or CCS.GetShowAllBoss(bossKey)
+
+        local sectionText = entry.section or entry.boss
+        if entry._color and sectionText then
+            sectionText = entry._color .. sectionText .. "|r"
+        end
+        if bossKey and hasAdvanced then
+            -- Match section colour but a shade darker. Fall back to grey.
+            local base = entry._color
+                         or (entry.section and entry.section:match("(|c%x%x%x%x%x%x%x%x)"))
+            local chevronColor = "|cffaaaaaa"
+            if base then
+                local a, r, g, b = base:match("^|c(%x%x)(%x%x)(%x%x)(%x%x)$")
+                if r then
+                    local factor = 0.65
+                    r = math.floor(tonumber(r, 16) * factor)
+                    g = math.floor(tonumber(g, 16) * factor)
+                    b = math.floor(tonumber(b, 16) * factor)
+                    chevronColor = string.format("|c%s%02x%02x%02x", a, r, g, b)
+                end
+            end
+            local chevron = CCS.GetShowAllBoss(bossKey) and "^" or "v"
+            sectionText = (sectionText or "") .. " " .. chevronColor .. chevron .. "|r"
+        end
+        hdr._lbl:SetText(sectionText)
+
+        -- Left-click: toggle "Show non-default" (only when there's anything to reveal).
+        -- Right-click: open the Encounter Journal to this boss.
+        hdr:EnableMouse(true)
+        hdr:SetScript("OnMouseUp", function(_, button)
+            if button == "LeftButton" then
+                if bossKey and hasAdvanced then
+                    withCombatGuard(function()
+                        CCS.SetShowAllBoss(bossKey, not CCS.GetShowAllBoss(bossKey))
+                        if CCS._fullRebuild then CCS._fullRebuild() end
+                    end)
+                end
+            elseif button == "RightButton" then
+                local iid = entry.journalInstanceID
+                local eid = entry.journalEncounterID
+                if iid and eid then
+                    if InCombatLockdown() then
+                        print("|cffffff00CCS:|r Can't open the journal in combat.")
+                        return
+                    end
+                    local loadFn = (C_AddOns and C_AddOns.LoadAddOn) or UIParentLoadAddOn or LoadAddOn
+                    if loadFn then loadFn("Blizzard_EncounterJournal") end
+                    if EncounterJournal_OpenJournal then
+                        EncounterJournal_OpenJournal(nil, iid, eid)
+                    else
+                        print("|cffffff00CCS:|r Encounter Journal isn't available.")
+                    end
+                else
+                    print("|cffffff00CCS:|r No dungeon journal reference set for "
+                        .. (entry.boss or entry.section or "this boss")
+                        .. ". Add journalInstanceID and journalEncounterID to the entry.")
+                end
+            end
+        end)
+        if bossKey and hasAdvanced then
+            addTooltip(hdr, entry.boss or entry.section or "",
+                "Left-click to " .. (showAll and "hide" or "show") ..
+                " non-default abilities.\nRight-click to open the dungeon journal.")
+        else
+            addTooltip(hdr, entry.boss or entry.section or "",
+                "Right-click to open the dungeon journal.")
+        end
+
+        hdr:Show(); y = y - SECTION_HEADER_H
 
         for _, ability in ipairs(entry.abilities) do
-            if ability.advanced and not showAll then
+            local visible = not ability.advanced
+                            or showAll
+                            or CCS.IsAbilityOptedIn(ability.key)
+            if not visible then
                 -- hidden
             else
             rowIdx = rowIdx + 1
@@ -1382,24 +1473,6 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
             end
         end
 
-        -- "Show all" toggle row, below the boss block.
-        if bossKey and hasAdvanced then
-            y = y - 2
-            showAllIdx = showAllIdx + 1
-            local sa = acquireShowAll(scrollChild, showAllIdx)
-            sa:ClearAllPoints()
-            sa:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, y)
-            sa:SetWidth(totalWidth)
-            sa._cb:SetChecked(CCS.GetShowAllBoss(bossKey))
-            sa._cb:SetScript("OnClick", function(self)
-                withCombatGuard(function()
-                    CCS.SetShowAllBoss(bossKey, self:GetChecked())
-                    if CCS._fullRebuild then CCS._fullRebuild() end
-                end)
-            end)
-            sa:Show()
-            y = y - SHOW_ALL_H
-        end
         y = y - 8
 
         end  -- if entry.abilities
@@ -1631,6 +1704,12 @@ local function BuildCCSOptions(panel, isStandalone)
         warnBox:SetSize(w, BULK_BOX_H)
         warnBox:SetScript("OnShow", nil)
     end)
+
+    -- Tip below the "All Warnings" box.
+    local warnBoxTip = headerBar:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    warnBoxTip:SetText("|cffaaaaaaTip: Click the boss name to toggle ALL available debuffs on this encounter.|r")
+    warnBoxTip:SetPoint("TOPLEFT", warnBox, "BOTTOMLEFT", 4, -2)
+    warnBoxTip:SetJustifyH("LEFT")
 
     local cdBox = makeGroupBox(headerBar, headerBar, "BOTTOMRIGHT", 0, 0, "BOTTOMRIGHT")
     cdBox:SetBackdropBorderColor(0, 0, 0, 0)
@@ -1910,12 +1989,13 @@ local function BuildCCSOptions(panel, isStandalone)
         if CCS._refreshBulkUnderlines then CCS._refreshBulkUnderlines() end
     end
 
-    -- Profile change: in-place resync if already built.
+    -- Profile change: full rebuild so per-profile show-non-default and
+    -- opt-in visibility both take effect immediately.
     local _prevOnProfileChange = CCS._onProfileChange
     CCS._onProfileChange = function()
         if _prevOnProfileChange then _prevOnProfileChange() end
         if built then
-            for _, r in ipairs(_pool.rows) do r.syncFromDB() end
+            fullRebuild()
             if CCS._refreshBulkUnderlines then CCS._refreshBulkUnderlines() end
         end
     end
@@ -1935,7 +2015,7 @@ local function BuildCCSOptions(panel, isStandalone)
     enableWarnBtn:SetScript("OnClick", function()
         withCombatGuard(function()
             CCS.SetAllWarn(true)
-            for _, r in ipairs(_pool.rows) do r.syncFromDB() end
+            fullRebuild()
             CCS.RefreshSounds()
             refreshBulkUnderlines()
         end)
@@ -1943,7 +2023,7 @@ local function BuildCCSOptions(panel, isStandalone)
     disableWarnBtn:SetScript("OnClick", function()
         withCombatGuard(function()
             CCS.SetAllWarn(false)
-            for _, r in ipairs(_pool.rows) do r.syncFromDB() end
+            fullRebuild()
             CCS.RefreshSounds()
             refreshBulkUnderlines()
         end)
@@ -1951,7 +2031,7 @@ local function BuildCCSOptions(panel, isStandalone)
     enableCDBtn:SetScript("OnClick", function()
         withCombatGuard(function()
             CCS.SetAllCD(true)
-            for _, r in ipairs(_pool.rows) do r.syncFromDB() end
+            fullRebuild()
             CCS.RefreshSounds()
             refreshBulkUnderlines()
         end)
@@ -1959,7 +2039,7 @@ local function BuildCCSOptions(panel, isStandalone)
     disableCDBtn:SetScript("OnClick", function()
         withCombatGuard(function()
             CCS.SetAllCD(false)
-            for _, r in ipairs(_pool.rows) do r.syncFromDB() end
+            fullRebuild()
             CCS.RefreshSounds()
             refreshBulkUnderlines()
         end)
@@ -2194,23 +2274,26 @@ SlashCmdList["CCS"] = function(msg)
     local arg = msg and msg:match("^%s*(%S+)") or ""
     arg = arg:lower()
 
-    if arg == "plexus" then
-        if not CCS._plexusTestEntry then
-            print("|cffffff00CCS:|r Plexus test entry not loaded (data file missing).")
+    if arg == "ejid" then
+        if not EncounterJournal or not EncounterJournal:IsShown() then
+            print("|cffffff00CCS:|r Open the Encounter Journal on a boss first, then run this.")
             return
         end
-        local idx
-        for i, entry in ipairs(CCS_Spells_Raid) do
-            if entry.bossKey == "plexus_sentinel" then idx = i; break end
-        end
-        if idx then
-            table.remove(CCS_Spells_Raid, idx)
-            print("|cffffff00CCS:|r Plexus Sentinel test |cffff5555disabled|r.")
+        local iid = EncounterJournal.instanceID
+        local eid = EncounterJournal.encounterID
+        print("|cffffff00CCS:|r journalInstanceID = " .. tostring(iid)
+            .. ", journalEncounterID = " .. tostring(eid))
+        return
+    end
+
+    if arg == "plexus" then
+        -- Follower-dungeon test mode. Session-only; resets every /reload.
+        CCS._followerTestMode = not CCS._followerTestMode
+        if CCS._followerTestMode then
+            print("|cffffff00CCS:|r Follower dungeon test mode |cff00ff00enabled|r. Any party instance is treated as Mythic.")
         else
-            table.insert(CCS_Spells_Raid, 1, CCS._plexusTestEntry)
-            print("|cffffff00CCS:|r Plexus Sentinel test |cff00ff00enabled|r.")
+            print("|cffffff00CCS:|r Follower dungeon test mode |cffff5555disabled|r.")
         end
-        if CCS._fullRebuild then CCS._fullRebuild() end
         CCS.RefreshAll()
         return
     end
@@ -2259,6 +2342,7 @@ SlashCmdList["CCS"] = function(msg)
     end
 
     if arg == "privatetest" then
+        local hasGeneral = C_UnitAuras.AddAuraAppliedSound ~= nil
         local failed = 0
         local sources = {
             { label = "Raid",  data = CCS_Spells_Raid },
@@ -2289,10 +2373,20 @@ SlashCmdList["CCS"] = function(msg)
                             end
                         end
                         for _, id in ipairs(ids) do
-                            if id and id ~= 0 and not C_UnitAuras.AuraIsPrivate(id) then
-                                print("|cffff9900CCS privatetest:|r |cffff5555NOT private:|r " ..
-                                    ability.key .. " (spellID " .. id .. ") [" .. src.label .. "]")
-                                failed = failed + 1
+                            if id and id ~= 0 then
+                                if hasGeneral then
+                                    if C_Spell and C_Spell.DoesSpellExist and not C_Spell.DoesSpellExist(id) then
+                                        print("|cffff9900CCS spelltest:|r |cffff5555UNKNOWN spellID:|r " ..
+                                            ability.key .. " (spellID " .. id .. ") [" .. src.label .. "]")
+                                        failed = failed + 1
+                                    end
+                                else
+                                    if not C_UnitAuras.AuraIsPrivate(id) then
+                                        print("|cffff9900CCS privatetest:|r |cffff5555NOT private:|r " ..
+                                            ability.key .. " (spellID " .. id .. ") [" .. src.label .. "]")
+                                        failed = failed + 1
+                                    end
+                                end
                             end
                         end
                     end
@@ -2300,9 +2394,17 @@ SlashCmdList["CCS"] = function(msg)
             end
         end
         if failed == 0 then
-            print("|cffffff00CCS privatetest:|r |cff00ff00All spell IDs are private auras.|r")
+            if hasGeneral then
+                print("|cffffff00CCS spelltest:|r |cff00ff00All spell IDs exist.|r")
+            else
+                print("|cffffff00CCS privatetest:|r |cff00ff00All spell IDs are private auras.|r")
+            end
         else
-            print("|cffffff00CCS privatetest:|r " .. failed .. " non-private spell ID(s) found.")
+            if hasGeneral then
+                print("|cffffff00CCS spelltest:|r " .. failed .. " unknown spell ID(s) found.")
+            else
+                print("|cffffff00CCS privatetest:|r " .. failed .. " non-private spell ID(s) found.")
+            end
         end
         return
     end
