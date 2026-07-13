@@ -1,8 +1,8 @@
-## Interface:  120005, 120007, 120100
+## Interface:  120007, 120100
 ## Title: Custom Countdown Sounds
 ## Notes: Private aura sounds for Midnight bosses.
 ## Author: Knofle
-## Version: 0.5.11
+## Version: 0.6.0
 ## SavedVariables: CCS_DB
 ## IconTexture: Interface\AddOns\CustomCountdownSounds\icon.tga
 

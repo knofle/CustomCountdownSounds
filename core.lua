@@ -86,6 +86,7 @@ CCS.getCurrentDifficulty = getCurrentDifficulty
 local dbDefaults = {
     profile = {
         showAllBosses = {},
+        channel       = "Master", -- output channel: Master/Music/SFX/Ambience/Dialog
     },
     char = {
         minimap              = { minimapPos = 225, hide = false },
@@ -93,6 +94,7 @@ local dbDefaults = {
         activeDungeon        = "__all__",
         activeRaid           = "__all__",
         customTimerOverride  = false,
+        scale                = 1.0,   -- standalone window scale
     },
 }
 
@@ -136,6 +138,7 @@ function CCS.GetProfile()
     if rawget(p, "countdownEnabled")  == nil then rawset(p, "countdownEnabled",   {}) end
     if rawget(p, "countdownOverride") == nil then rawset(p, "countdownOverride",  {}) end
     if rawget(p, "showAllBosses")     == nil then rawset(p, "showAllBosses",      {}) end
+    if rawget(p, "channel")           == nil then rawset(p, "channel",     "Master") end
     return p
 end
 
@@ -341,6 +344,19 @@ end
 
 function CCS.SetCustomTimerOverride(val)
     CCS.GetChar().customTimerOverride = val
+end
+
+local VALID_CHANNELS = { Master = true, Music = true, SFX = true, Ambience = true, Dialog = true }
+function CCS.GetChannel() return CCS.GetProfile().channel or "Master" end
+function CCS.SetChannel(v)
+    if VALID_CHANNELS[v] then CCS.GetProfile().channel = v end
+end
+
+function CCS.GetScale() return CCS.GetChar().scale or 1.0 end
+function CCS.SetScale(v)
+    if type(v) == "number" then
+        CCS.GetChar().scale = math.max(0.5, math.min(2.0, v))
+    end
 end
 
 function CCS.GetShowAllBoss(bossKey)
@@ -774,7 +790,7 @@ local function registerAbility(ability, diff, bossKey)
                 unitToken     = "player",
                 spellID       = spellID,
                 soundFileName = path,
-                outputChannel = "Master",
+                outputChannel = CCS.GetChannel(),
             })
             if id then
                 handles[ability.key][#handles[ability.key] + 1] = id

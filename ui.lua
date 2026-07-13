@@ -1,6 +1,9 @@
 -- ui.lua
 local addonName = ...
 
+-- Live search filter for the ability list (lowercased). Empty = no filter.
+local searchQuery = ""
+
 ------------------------------------------------------------
 -- Tiny utilities
 ------------------------------------------------------------
@@ -82,7 +85,7 @@ end
 local function previewSound(value)
     if not value or value == "__default__" then return end
     local path = CCS.ResolvePath and CCS.ResolvePath(value)
-    if path then PlaySoundFile(path, "Master") end
+    if path then PlaySoundFile(path, CCS.GetChannel()) end
 end
 
 local CATEGORY_NAME = "Custom Countdown Sounds"
@@ -209,7 +212,7 @@ local function CCS_GetOrCreatePopup()
                     if owner then
                         owner._value = item.value
                         owner._label:SetText(item.shortLabel or item.label)
-                        if item.value == "__default__" then
+                        if owner._noGreen or item.value == "__default__" then
                             owner:SetBackdropColor(0.15, 0.15, 0.15, 1)
                         else
                             owner:SetBackdropColor(0.05, 0.28, 0.05, 1)
@@ -394,6 +397,12 @@ local function CCS_CreateDropdown(parent, width, height, fontSize)
                              or  ((self._popupWidth or width or 110) + SCROLL_W + PAD)
         local extraH = hasSearch and (SEARCH_H + 4) or 0
         popup:SetSize(pw, PAD*2 + visible*ROW_H + extraH)
+        -- Match the owner's scale so the popup (and its fonts) resize with the
+        -- window. The popup lives on UIParent, so use the owner's effective
+        -- scale relative to UIParent.
+        local ownerEff = self:GetEffectiveScale()
+        local puEff    = UIParent:GetEffectiveScale()
+        popup:SetScale(ownerEff / puEff)
         popup:ClearAllPoints()
         popup:SetPoint("TOPLEFT", self, "BOTTOMLEFT", 0, -2)
         popup._refresh()
@@ -411,7 +420,7 @@ local function CCS_CreateDropdown(parent, width, height, fontSize)
         for _, item in ipairs(self._items) do
             if item.value == value then
                 self._label:SetText(item.shortLabel or item.label)
-                if value == "__default__" then
+                if self._noGreen or value == "__default__" then
                     self:SetBackdropColor(0.15, 0.15, 0.15, 1)
                 else
                     self:SetBackdropColor(0.05, 0.28, 0.05, 1)
@@ -428,7 +437,7 @@ local function CCS_CreateDropdown(parent, width, height, fontSize)
         if self._enabled then
             self._label:SetTextColor(1,   1,   1)
             self._arrow:SetTextColor(0.8, 0.8, 0.8)
-            local isOverride = self._value and self._value ~= "__default__"
+            local isOverride = (not self._noGreen) and self._value and self._value ~= "__default__"
             self:SetBackdropColor(isOverride and 0.05 or 0.15, isOverride and 0.28 or 0.15, isOverride and 0.05 or 0.15, 1)
             self:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
         else
@@ -613,7 +622,7 @@ local function testAbility(ability, difficulty)
         local resolvedWarnKey = CCS.GetWarnOverride(ability.key) or defaultWarnKey
         local warnSoundPath = CCS.ResolvePath and CCS.ResolvePath(resolvedWarnKey)
         if warnSoundPath then
-            PlaySoundFile(warnSoundPath, "Master")
+            PlaySoundFile(warnSoundPath, CCS.GetChannel())
             anySoundPlayed = true
         end
     end
@@ -624,7 +633,7 @@ local function testAbility(ability, difficulty)
         local resolvedCDKey = (ctOn and CCS.GetCountdownOverride(ability.key, difficulty)) or defaultCDKey
         local cdSoundPath = resolvedCDKey and CCS.ResolvePath and CCS.ResolvePath(resolvedCDKey)
         if cdSoundPath then
-            PlaySoundFile(cdSoundPath, "Master")
+            PlaySoundFile(cdSoundPath, CCS.GetChannel())
             anySoundPlayed = true
         end
     end
@@ -1321,8 +1330,18 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
 
     local divider = _pool.divider
 
+    local filtering = searchQuery ~= ""
+    local function abilityMatches(ability)
+        return (ability.label or ""):lower():find(searchQuery, 1, true) ~= nil
+    end
+
     for _, entry in ipairs(CCS_Spells) do
-        if entry.abilities then
+        if entry.abilities and (not filtering or (function()
+            for _, ab in ipairs(entry.abilities) do
+                if abilityMatches(ab) then return true end
+            end
+            return false
+        end)()) then
 
         local justRaidHdr = false
 
@@ -1451,9 +1470,16 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
         hdr:Show(); y = y - SECTION_HEADER_H
 
         for _, ability in ipairs(entry.abilities) do
-            local visible = not ability.advanced
-                            or showAll
-                            or CCS.IsAbilityOptedIn(ability.key)
+            local visible
+            if filtering then
+                -- When searching, show any ability whose name matches,
+                -- regardless of the advanced / show-non-default gate.
+                visible = abilityMatches(ability)
+            else
+                visible = not ability.advanced
+                          or showAll
+                          or CCS.IsAbilityOptedIn(ability.key)
+            end
             if not visible then
                 -- hidden
             else
@@ -1547,14 +1573,18 @@ local function BuildCCSOptions(panel, isStandalone)
         end
     end)
 
+    local helpBtn = CreateFrame("Button", nil, topBlock, "UIPanelButtonTemplate")
+    helpBtn:SetSize(50, 20)
+    helpBtn:SetPoint("RIGHT", profilesBtn, "LEFT", -6, 0)
+    helpBtn:SetText("Help")
+    stripButtonBorder(helpBtn)
+    addTooltip(helpBtn, "Help", "How this addon works.")
+
     local inst = topBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     inst:SetPoint("TOPLEFT",  title,    "BOTTOMLEFT", 0,    -6)
     inst:SetPoint("TOPRIGHT", topBlock, "TOPRIGHT",  -16,    0)
     inst:SetJustifyH("LEFT"); inst:SetWordWrap(true)
-    inst:SetText(
-        "Choose sounds that play automatically when a private aura lands on you in Heroic or Mythic raid.\n" ..
-        "Warning sounds (left side) and countdown sounds (right side) are toggled independently."
-    )
+    inst:SetText("")
 
     -- Confirm dialog (for Defaults button)
     local confirmDialog = CreateFrame("Frame", nil, topBlock, "BackdropTemplate")
@@ -1591,6 +1621,96 @@ local function BuildCCSOptions(panel, isStandalone)
         if confirmDialog:IsShown() then confirmDialog:Hide() else confirmDialog:Show() end
     end)
 
+    -- Help popup
+    local helpDialog = CreateFrame("Frame", nil, panel, "BackdropTemplate")
+    helpDialog:SetSize(440, 440)
+    helpDialog:SetPoint("CENTER", panel, "CENTER", 0, 0)
+    helpDialog:SetFrameStrata("FULLSCREEN_DIALOG")
+    helpDialog:SetFrameLevel(400)
+    helpDialog:SetBackdrop({
+        bgFile   = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 12, insets = { left=4, right=4, top=4, bottom=4 },
+    })
+    helpDialog:SetBackdropColor(0.06, 0.06, 0.06, 1)
+    helpDialog:SetBackdropBorderColor(0.8, 0.6, 0.1, 1)
+    helpDialog:EnableMouse(true)
+    helpDialog:Hide()
+
+    local helpTitle = helpDialog:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    helpTitle:SetPoint("TOP", helpDialog, "TOP", 0, -12)
+    helpTitle:SetText("|cffFFD100Custom Countdown Sounds Help|r")
+
+    local helpClose = CreateFrame("Button", nil, helpDialog, "UIPanelButtonTemplate")
+    helpClose:SetSize(70, 22)
+    helpClose:SetPoint("BOTTOM", helpDialog, "BOTTOM", 0, 12)
+    helpClose:SetText("Close")
+    stripButtonBorder(helpClose)
+    helpClose:SetScript("OnClick", function() helpDialog:Hide() end)
+
+    local helpScroll = CreateFrame("ScrollFrame", nil, helpDialog, "UIPanelScrollFrameTemplate")
+    helpScroll:SetPoint("TOPLEFT", helpDialog, "TOPLEFT", 16, -40)
+    helpScroll:SetPoint("BOTTOMRIGHT", helpDialog, "BOTTOMRIGHT", -32, 42)
+    local helpContent = CreateFrame("Frame", nil, helpScroll)
+    helpContent:SetSize(380, 10)
+    helpScroll:SetScrollChild(helpContent)
+
+    local helpText = helpContent:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    helpText:SetPoint("TOPLEFT", helpContent, "TOPLEFT", 0, 0)
+    helpText:SetWidth(376)
+    helpText:SetJustifyH("LEFT")
+    helpText:SetJustifyV("TOP")
+    helpText:SetSpacing(3)
+    helpText:SetText(table.concat({
+        "|cffFFD100What this addon does|r",
+        "It plays a sound when a boss ability lands on you, and can also play a spoken countdown as the effect is about to expire. This helps you react without staring at your debuffs.",
+        " ",
+        "|cffFFD100The two columns|r",
+        "Each ability has two independent halves.",
+        "|cff80d0ffWarning|r (left): a sound the moment the aura is applied to you.",
+        "|cff80d0ffCountdown|r (right): a spoken timer as it runs out.",
+        "Tick either, both, or neither. They don't depend on each other. Click the |cffccccccTest|r button to preview what sounds will play in a Mythic encounter.",
+        " ",
+        "|cffFFD100Raid vs Mythic+|r",
+        "Use the |cffccccccModule|r buttons to switch between raid and Mythic+ data. In raid, abilities have separate countdown boxes for Heroic (HC) and Mythic (M) difficulty, since durations sometimes differ. Mythic+ only uses one tickbox.",
+        " ",
+        "|cffFFD100Choosing sounds|r",
+        "Use the dropdown next to each tickbox to pick which sound plays. Anything you customise is remembered per profile.",
+        " ",
+        "|cffFFD100Sound output|r",
+        "The |cffccccccSound output|r dropdown at the top sets which of the game's audio channels these sounds play through (Master, Music, Effects, Ambience or Dialog). This lets you control their volume from WoW's own audio panel. For example, route them through 'Dialog' and they'll follow your Dialog volume slider, so you can adjust them separately from everything else. Leave it on Master if you just want them at your overall game volume.",
+        " ",
+        "|cffFFD100Search|r",
+        "Use the search box below the header to filter the list by ability name. Matches show even if they're normally hidden under a collapsed boss.",
+        " ",
+        "|cffFFD100Default vs non-default abilities|r",
+        "Most bosses already come with sensible defaults. You just need to enable them by ticking the boxes. Extra abilities that don't have a default are hidden to keep the list clean.",
+        "|cff80d0ffClick a boss name|r to show or hide those extra (non-default) abilities. A small |cffffffff v |r means it can be expanded, |cffffffff ^ |r means it's open.",
+        " ",
+        "|cffFFD100All Warnings / All Countdowns|r",
+        "The Enable/Disable buttons at the top flip every visible ability at once, so you can silence or turn on a whole section quickly.",
+        " ",
+        "|cffFFD100Right-click a boss name|r",
+        "Opens the in-game Dungeon Journal to that boss, if a journal link is set.",
+        " ",
+        "|cffFFD100Profiles|r",
+        "Use |cffccccccProfiles|r to keep different setups (e.g. one per character or per role). |cffccccccDefaults|r resets your current profile back to the built-in settings.",
+        " ",
+        "|cffFFD100Manual Mode (Advanced)|r",
+        "Lets you override a countdown's duration if a timer is ever wrong, and lets you add countdowns to abilities that don't have a default one. Most people never need this.",
+    }, "\n"))
+
+    helpContent:SetHeight(helpText:GetStringHeight() + 10)
+
+    helpBtn:SetScript("OnClick", function()
+        if helpDialog:IsShown() then
+            helpDialog:Hide()
+        else
+            helpContent:SetHeight(helpText:GetStringHeight() + 10)
+            helpDialog:Show()
+        end
+    end)
+
     -- Bulk action group boxes
     local function makeGroupBox(parent, anchor, anchorPt, xOff, yOff, selfPt)
         local box = CreateFrame("Frame", nil, parent, "BackdropTemplate")
@@ -1624,8 +1744,135 @@ local function BuildCCSOptions(panel, isStandalone)
         moduleBox:SetSize(14 + lblW + 8 + raidW + 2 + mplusW + 4, 24)
         moduleBox:SetScript("OnShow", nil)
     end)
-    raidBtn:SetScript("OnClick",  function() CCS.SetModule("raid")  end)
-    mplusBtn:SetScript("OnClick", function() CCS.SetModule("mplus") end)
+    local function clearSearch()
+        searchQuery = ""
+        if CCS._searchBox then CCS._searchBox:SetText("") end
+    end
+    raidBtn:SetScript("OnClick",  function() clearSearch(); CCS.SetModule("raid")  end)
+    mplusBtn:SetScript("OnClick", function() clearSearch(); CCS.SetModule("mplus") end)
+
+    -- Output channel dropdown (below the title) + scale slider (next to title).
+    local settingsBox = CreateFrame("Frame", nil, topBlock)
+    settingsBox:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
+    settingsBox:SetSize(360, 24)
+
+    local chanLbl = settingsBox:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    chanLbl:SetText("|cffccccccSound output|r")
+    chanLbl:SetPoint("LEFT", settingsBox, "LEFT", 0, 0)
+
+    local CHANNEL_ITEMS = {
+        { label = "Master",   value = "Master"   },
+        { label = "Music",    value = "Music"    },
+        { label = "Effects",  value = "SFX"      },
+        { label = "Ambience", value = "Ambience" },
+        { label = "Dialog",   value = "Dialog"   },
+    }
+    local chanDD = CCS_CreateDropdown(settingsBox, 90, 20, 11)
+    chanDD._noGreen = true
+    chanDD:SetPoint("LEFT", chanLbl, "RIGHT", 6, 0)
+    chanDD:SetItems(CHANNEL_ITEMS)
+    chanDD:SetValue(CCS.GetChannel())
+    chanDD:SetOnSelect(function(v)
+        withCombatGuard(function()
+            CCS.SetChannel(v)
+            CCS.RefreshSounds()  -- re-register through the new channel
+        end)
+    end)
+    addTooltip(chanDD, "Sound output channel",
+        "Which volume slider these sounds follow. 'Effects' uses your Sound Effects volume; the rest match their name.")
+
+    local scaleSlider, scaleValue
+    if isStandalone then
+        local scaleLbl = topBlock:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        scaleLbl:SetText("|cffccccccScale|r")
+        scaleLbl:SetPoint("LEFT", title, "RIGHT", 20, 0)
+
+        local minV, maxV, step = 0.5, 2.0, 0.05
+        local TW, INSET = 46, 2
+
+        local s = CreateFrame("Frame", nil, topBlock, "BackdropTemplate")
+        s:SetSize(120, 18)
+        s:SetPoint("TOPLEFT", scaleLbl, "TOPRIGHT", 8, 2)
+        s:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
+        s:SetBackdropColor(0.05, 0.05, 0.05, 1)
+        s:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+        s:EnableMouse(true)
+
+        local thumb = CreateFrame("Frame", nil, s, "BackdropTemplate")
+        thumb:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
+        thumb:SetBackdropColor(0.22, 0.22, 0.22, 1)
+        thumb:SetBackdropBorderColor(0.45, 0.45, 0.45, 1)
+
+        local text = thumb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        text:SetPoint("CENTER", thumb, "CENTER", 0, 0)
+
+        s._value = CCS.GetScale()
+        local function clampStep(v)
+            v = minV + math.floor((v - minV) / step + 0.5) * step
+            return math.max(minV, math.min(maxV, v))
+        end
+        local function refresh()
+            local w = s:GetWidth() or 0
+            local travel = math.max(0, w - 2 * INSET - TW)
+            local frac = (s._value - minV) / (maxV - minV)
+            thumb:SetSize(TW, (s:GetHeight() or 18) - 2 * INSET)
+            thumb:ClearAllPoints()
+            thumb:SetPoint("TOPLEFT", s, "TOPLEFT", INSET + travel * frac, -INSET)
+            text:SetText(("%d%%"):format(math.floor(s._value * 100 + 0.5)))
+        end
+
+        local function valueFromCursor()
+            local left = s:GetLeft(); if not left then return s._value end
+            local x = GetCursorPosition() / s:GetEffectiveScale()
+            local w = s:GetWidth(); if not w or w <= 0 then w = 1 end
+            local travel = math.max(1, w - 2 * INSET - TW)
+            local frac = (x - left - INSET - TW / 2) / travel
+            return clampStep(minV + math.max(0, math.min(1, frac)) * (maxV - minV))
+        end
+
+        local dragging = false
+        -- Preview the thumb + % while dragging, but don't apply the scale
+        -- (SetScale) until the mouse is released.
+        local function preview(v)
+            s._value = v
+            refresh()
+        end
+        local function commit(v)
+            s._value = v
+            CCS.SetScale(v)
+            refresh()
+            if CCS._applyWindowScale then CCS._applyWindowScale(v) end
+        end
+        s:SetScript("OnMouseDown", function(self, btn)
+            if btn ~= "LeftButton" then return end
+            dragging = true
+            preview(valueFromCursor())
+            self:SetScript("OnUpdate", function() preview(valueFromCursor()) end)
+        end)
+        s:SetScript("OnMouseUp", function(self)
+            if not dragging then return end
+            dragging = false
+            self:SetScript("OnUpdate", nil)
+            commit(valueFromCursor())
+        end)
+        thumb:EnableMouse(false)
+        s:SetScript("OnSizeChanged", refresh)
+
+        scaleSlider = s
+        scaleValue = text
+        s.refresh = refresh
+        refresh()
+        addTooltip(s, "Window scale", "Resize the whole window.")
+    end
+
+    CCS._syncSettingsBox = function()
+        chanDD:SetValue(CCS.GetChannel())
+        if scaleSlider then
+            scaleSlider._value = CCS.GetScale()
+            if scaleSlider.refresh then scaleSlider:refresh() end
+            scaleValue:SetText(("%d%%"):format(math.floor(CCS.GetScale() * 100 + 0.5)))
+        end
+    end
 
     local function refreshModuleBtns()
         local m = CCS.GetModule()
@@ -1650,11 +1897,11 @@ local function BuildCCSOptions(panel, isStandalone)
     headerBar:SetPoint("TOPRIGHT", topBlock, "BOTTOMRIGHT", 0, 0)
 
     local leftHdrTitle = headerBar:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-    leftHdrTitle:SetText("|cffFFD100Warning Sound|r")
+    leftHdrTitle:SetText("")
     local rightHdrTitle = headerBar:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-    rightHdrTitle:SetText("|cffFFD100Countdown Timer|r")
+    rightHdrTitle:SetText("")
     local rightHdrSub = headerBar:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    rightHdrSub:SetText("|cffaaaaaa HC: Heroic          M: Mythic|r")
+    rightHdrSub:SetText("")
 
     -- Global "Manual Mode (Advanced)" checkbox
     local durationOverrideCB = CreateFrame("CheckButton", nil, headerBar, "UICheckButtonTemplate")
@@ -1665,6 +1912,20 @@ local function BuildCCSOptions(panel, isStandalone)
     durationOverrideLbl:SetPoint("LEFT", durationOverrideCB, "RIGHT", 2, 0)
     addTooltip(durationOverrideCB, "Manual Mode (Advanced)",
         "Check this if a debuff duration is wrong, you need to manually adjust it, or if you need them customized for some other reason.\nContact me if you want a default value changed.")
+
+    -- Search box (filters the ability list live). Lives in the header bar on
+    -- the same baseline as Manual Mode, left side, ~30% width.
+    local searchBox = CreateFrame("EditBox", nil, headerBar, "SearchBoxTemplate")
+    searchBox:SetHeight(18)
+    if searchBox.Instructions then searchBox.Instructions:SetText("Search abilities...") end
+    CCS._searchBox = searchBox
+    searchBox:HookScript("OnTextChanged", function(self)
+        local q = (self:GetText() or ""):lower()
+        if q ~= searchQuery then
+            searchQuery = q
+            if CCS._fullRebuild then CCS._fullRebuild() end
+        end
+    end)
 
     -- Bulk action boxes inside headerBar
     local warnBox = makeGroupBox(headerBar, headerBar, "BOTTOMLEFT", 0, 0, "BOTTOMLEFT")
@@ -1704,12 +1965,6 @@ local function BuildCCSOptions(panel, isStandalone)
         warnBox:SetSize(w, BULK_BOX_H)
         warnBox:SetScript("OnShow", nil)
     end)
-
-    -- Tip below the "All Warnings" box.
-    local warnBoxTip = headerBar:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    warnBoxTip:SetText("|cffaaaaaaTip: Click the boss name to toggle ALL available debuffs on this encounter.|r")
-    warnBoxTip:SetPoint("TOPLEFT", warnBox, "BOTTOMLEFT", 4, -2)
-    warnBoxTip:SetJustifyH("LEFT")
 
     local cdBox = makeGroupBox(headerBar, headerBar, "BOTTOMRIGHT", 0, 0, "BOTTOMRIGHT")
     cdBox:SetBackdropBorderColor(0, 0, 0, 0)
@@ -1965,6 +2220,12 @@ local function BuildCCSOptions(panel, isStandalone)
         durationOverrideCB:SetPoint("RIGHT", durationOverrideLbl, "LEFT", 0, 0)
         durationOverrideCB:SetChecked(CCS.GetCustomTimerOverride())
 
+        if CCS._searchBox then
+            CCS._searchBox:ClearAllPoints()
+            CCS._searchBox:SetPoint("BOTTOMLEFT", headerBar, "BOTTOMLEFT", 20, 6)
+            CCS._searchBox:SetWidth(math.max(120, math.floor((totalWidth or 700) * 0.30)))
+        end
+
         if CCS.GetModule() == "mplus" then
             rightHdrSub:Hide()
             rightHdrTitle:SetPoint("CENTER", headerBar, "LEFT", leftW + cdCx, 8)
@@ -1997,6 +2258,8 @@ local function BuildCCSOptions(panel, isStandalone)
         if built then
             fullRebuild()
             if CCS._refreshBulkUnderlines then CCS._refreshBulkUnderlines() end
+            if CCS._syncSettingsBox then CCS._syncSettingsBox() end
+            if CCS._applyWindowScale then CCS._applyWindowScale(CCS.GetScale()) end
         end
     end
 
@@ -2067,6 +2330,10 @@ local function BuildCCSOptions(panel, isStandalone)
         cachedSoundItems = nil
         wipe(_warnItemsCache)
 
+        -- Clear any stale search filter.
+        searchQuery = ""
+        if searchBox then searchBox:SetText("") end
+
         if not built then
             built = true
             local w = scroll:GetWidth()
@@ -2085,6 +2352,7 @@ local function BuildCCSOptions(panel, isStandalone)
             if CCS.ApplyModule then CCS.ApplyModule() end
             fullRebuild()
         end
+        if CCS._syncSettingsBox then CCS._syncSettingsBox() end
     end)
 
     return panel
@@ -2241,12 +2509,16 @@ local function CreateStandaloneWindow()
 
     handle:SetScript("OnMouseDown", function(self, btn)
         if btn ~= "LeftButton" then return end
+        -- Re-anchor by TOPLEFT so height changes grow downward, keeping the
+        -- top edge fixed. Work in the window's own scale throughout.
+        local eff  = win:GetEffectiveScale()
         local left = win:GetLeft()
         local top  = win:GetTop()
         win:ClearAllPoints()
         win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
         handle:SetScript("OnUpdate", function()
-            local curY = select(2, GetCursorPosition()) / UIParent:GetEffectiveScale()
+            -- Cursor pixels -> window scale (not UIParent scale).
+            local curY = select(2, GetCursorPosition()) / eff
             local newH = math.max(MIN_H, math.min(MAX_H, win:GetTop() - curY))
             win:SetHeight(newH)
         end)
@@ -2254,6 +2526,23 @@ local function CreateStandaloneWindow()
     handle:SetScript("OnMouseUp", function()
         handle:SetScript("OnUpdate", nil)
     end)
+
+    -- Apply scale while keeping the window's top-left screen position fixed.
+    local function applyScaleKeepTopLeft(v)
+        local left, top = win:GetLeft(), win:GetTop()
+        if not (left and top) then win:SetScale(v); return end
+        -- Absolute screen position of the top-left corner (in pixels).
+        local sx = left * win:GetEffectiveScale()
+        local sy = top  * win:GetEffectiveScale()
+        win:SetScale(v)
+        -- Re-anchor so that same screen pixel maps to the new top-left.
+        local newEff = win:GetEffectiveScale()
+        win:ClearAllPoints()
+        win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", sx / newEff, sy / newEff)
+    end
+
+    win:SetScale(CCS.GetScale and CCS.GetScale() or 1.0)
+    CCS._applyWindowScale = applyScaleKeepTopLeft
 
     return BuildCCSOptions(win, true)
 end
