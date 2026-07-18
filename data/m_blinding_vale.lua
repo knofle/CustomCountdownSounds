@@ -1,36 +1,36 @@
 -- data/m_blinding_vale.lua
 
 CCS_Spells_Mplus_BlindingVale = {
+        {
+        raid    = "Blinding Vale",
+        boss    = "Lightblossom Trinity",
+        bossKey = "bv_trinity",
+        section = "Lightblossom Trinity",
+        journalInstanceID = 1309,
+        journalEncounterID = 2769,        
+        abilities = {
+            { key = "bv_thornblade",                label = "Thornblade (Short)",               privateID = 1261276,                soundM = "file:bleed",                            advanced = true, desc = "Random-target bleed. Just heal through it." },
+            { key = "bv_thornblade_2",              label = "Thornblade (Long)",                privateID = 1235865,                soundM = "file:bleed",                            advanced = true, desc = "Random-target bleed. Just heal through it." },
+            { key = "bv_bedrock_surge",             label = "Bedrock Surge",                    privateID = 1276586,                soundM = "file:dot",                            advanced = true, desc = "Raid-wide ticking damage after Bedrock Slam. Heal through it." },
+            { key = "bv_lightblossom_beam",         label = "Lightblossom Beam",                privateID = 1235574,                soundM = nil,                            advanced = true, desc = "Beam that grows a Lightblossom. Stand in it to block the growth." },
+            { key = "bv_fertile_loam",              label = "Fertile Loam",                     privateID = 1234802,                soundM = nil,                            advanced = true, desc = "Slows you and ticks damage. Don't stand in it." },
+            { key = "bv_light_scorched_earth",      label = "Light-Scorched Earth",             privateID = 1235828,                soundM = nil,                            advanced = true, desc = "Burning ground left behind. Don't stand in it." },
+        },
+    },
+
     {
         raid    = "Blinding Vale",
         boss    = "Ikuzz the Light Hunter",
         bossKey = "bv_ikuzz",
         section = "Ikuzz the Light Hunter",
         journalInstanceID = 1309,
-        journalEncounterID = 2769, 
+        journalEncounterID = 2770, 
         abilities = {
-            { key = "bv_bloodthirsty_gaze",         label = "Bloodthirsty Gaze",                privateID = 1237091,                soundM = "targeted"                                                     },
-            { key = "bv_bloodthorn_roots",          label = "Bloodthorn Roots",                 privateID = 1259365,                soundM = "file:root",                                       },
-            { key = "bv_verdant_stomp",             label = "Verdant Stomp",                    privateID = 1236747,                soundM = nil,                            advanced = true    },
-            { key = "bv_incise",                    label = "Incise",                           privateID = 1237267,                soundM = "file:bleed",                   advanced = true    }, -- Private aura
-            { key = "bv_crunched",                  label = "Crunched",                         privateID = 1272290,                soundM = "file:stun",                    advanced = true    }, -- Private aura
-        },
-    },
-
-    {
-        raid    = "Blinding Vale",
-        boss    = "Lightblossom Trinity",
-        bossKey = "bv_trinity",
-        section = "Lightblossom Trinity",
-        journalInstanceID = 1309,
-        journalEncounterID = 2770,        
-        abilities = {
-            { key = "bv_thornblade",                label = "Thornblade (Short)",               privateID = 1261276,                soundM = "file:bleed",                            advanced = true    },
-            { key = "bv_thornblade_2",              label = "Thornblade (Long)",                privateID = 1235865,                soundM = "file:bleed",                            advanced = true    },
-            { key = "bv_bedrock_surge",             label = "Bedrock Surge",                    privateID = 1276586,                soundM = "file:dot",                            advanced = true    },
-            { key = "bv_lightblossom_beam",         label = "Lightblossom Beam",                privateID = 1235574,                soundM = nil,                            advanced = true    },
-            { key = "bv_fertile_loam",              label = "Fertile Loam",                     privateID = 1234802,                soundM = nil,                            advanced = true    },
-            { key = "bv_light_scorched_earth",      label = "Light-Scorched Earth",             privateID = 1235828,                soundM = nil,                            advanced = true    },
+            { key = "bv_bloodthirsty_gaze",         label = "Bloodthirsty Gaze",                privateID = 1237091,                soundM = "fixate", desc = "Ikuzz fixates and chases you for 10s. Kite him away, don't let him reach you." },
+            { key = "bv_bloodthorn_roots",          label = "Bloodthorn Roots",                 privateID = 1259365,                soundM = "file:root", desc = "Roots you in place. Get freed (destroy the roots) to move." },
+            { key = "bv_verdant_stomp",             label = "Verdant Stomp",                    privateID = 1236747,                soundM = nil,                            advanced = true, desc = "Knockback, then roots spawn where players stood. Move off your spot after." },
+            { key = "bv_incise",                    label = "Incise",                           privateID = 1237267,                soundM = "file:bleed",                   advanced = true, desc = "You got caught by the gaze. Bleed, then a stun." }, -- Private aura
+            { key = "bv_crunched",                  label = "Crunched",                         privateID = 1272290,                soundM = "file:stun",                    advanced = true, desc = "Stunned for 5s after Incise. Nothing to do, just recover." }, -- Private aura
         },
     },
 
@@ -42,11 +42,11 @@ CCS_Spells_Mplus_BlindingVale = {
         journalInstanceID = 1309,
         journalEncounterID = 2771,       
         abilities = {
-            { key = "bv_pulverizing_strikes",       label = "Pulverizing Strikes",              privateID = 1240222,                soundM = "targeted"                                                     },
-            { key = "bv_grievous_thrash",           label = "Grievous Thrash",                  privateID = 1241058,                soundM = nil,                            advanced = true    },
-            { key = "bv_pulverized",                label = "Pulverized",                       privateID = 1257094,                soundM = nil,                            advanced = true    },
-            { key = "bv_lightfire",                 label = "Lightfire",                        privateID = 1239825,                soundM = {"file:drop","file:6s"}                            },
-            { key = "bv_lightfire_beams",           label = "Lightfire Beams",                  privateID = 1239919,                soundM = nil,                            advanced = true    }, -- Private aura
+            { key = "bv_pulverizing_strikes",       label = "Pulverizing Strikes",              privateID = 1240222,                soundM = "targeted", desc = "Frontal cone aimed at you. Point it away from others and don't get hit twice." },
+            { key = "bv_grievous_thrash",           label = "Grievous Thrash",                  privateID = 1241058,                soundM = nil,                            advanced = true, desc = "Stacking bleed, only clears at full health. Top yourself off." },
+            { key = "bv_pulverized",                label = "Pulverized",                       privateID = 1257094,                soundM = nil,                            advanced = true, desc = "You took a Pulverizing Strike. Avoid the next one, it hits you harder." },
+            { key = "bv_lightfire",                 label = "Lightfire",                        privateID = 1239825,                soundM = {"file:drop","file:6s"}, desc = "Beam on you, then Lightfire Beams spawn where you are. Drop it away from the group." },
+            { key = "bv_lightfire_beams",           label = "Lightfire Beams",                  privateID = 1239919,                soundM = nil,                            advanced = true, desc = "Silencing beams on the ground. Don't stand in them." }, -- Private aura
             { key = "bv_hunting_leap",              label = "Hunting Leap",                     privateID = 1303039,                soundM = nil,                            advanced = true    },
         },
     },
@@ -59,9 +59,9 @@ CCS_Spells_Mplus_BlindingVale = {
         journalInstanceID = 1309,
         journalEncounterID = 2772,        
         abilities = {
-            { key = "bv_lightblooms_might",         label = "Lightbloom's Might",               privateID = 1247052,                soundM = nil,                            advanced = true    },
-            { key = "bv_thornspike",                label = "Thornspike",                       privateID = 1247746,                soundM = nil,                            advanced = true    },
-            { key = "bv_lightsap",                  label = "Lightsap",                         privateID = 1246753,                soundM = nil,                            advanced = true    },
+            { key = "bv_lightblooms_might",         label = "Lightbloom's Might",               privateID = 1247052,                soundM = nil,                            advanced = true, desc = "Buffs your damage and healing but ticks on you. Grab it if you can handle the damage." },
+            { key = "bv_thornspike",                label = "Thornspike",                       privateID = 1247746,                soundM = nil,                            advanced = true, desc = "Tank hit with knockback and a bleed." },
+            { key = "bv_lightsap",                  label = "Lightsap",                         privateID = 1246753,                soundM = nil,                            advanced = true, desc = "Slowing puddle. Don't stand in it." },
             --{ key = "bv_concentrated_lightbeam",    label = "Concentrated Lightbeam",           privateID = 1246751,                soundM = nil,                            advanced = true    }, used on boss
         },
     },
@@ -78,7 +78,7 @@ CCS_Spells_Mplus_BlindingVale = {
             { key = "bv_grievous_gash",             label = "Grievous Gash",                    privateID = 1242135,                soundM = nil,                            advanced = true    },
             { key = "bv_ruptured_earth",            label = "Ruptured Earth",                   privateID = 1237858,                soundM = nil,                            advanced = true    },
             { key = "bv_toxic_spew",                label = "Toxic Spew",                       privateID = 1250937,                soundM = nil,                            advanced = true    },
-            { key = "bv_thornblade_trash",          label = "Thornblade",                       privateID = 1238076,                soundM = nil,                            advanced = true    },            
+            { key = "bv_thornblade_trash",          label = "Thornblade",                       privateID = 1238076,                soundM = nil,                            advanced = true, desc = "Random-target bleed. Just heal through it." },            
         },
     },
 }

@@ -24,7 +24,7 @@ CCS_Spells_Mplus_VoidscarArena = {
         journalInstanceID = 1313,
         journalEncounterID = 2792,         
         abilities = {
-            { key = "va_lingering_poison",          label = "Lingering Poison",                 privateID = 1263971,                soundM = nil,                            advanced = true    },
+            { key = "va_mind_numbing_poison",       label = "Mind-Numbing Poison",              privateID = 1263971,                soundM = nil,                            advanced = true,   desc = "Haste cut by 30% for 5s from Atroxus' poison pools. Get out of them." },
             { key = "va_hulking_claw",              label = "Hulking Claw",                     privateID = 1222642,                soundM = nil,                            advanced = true    },
             { key = "va_toxic_aura",                label = "Toxic Aura",                       privateID = 1222692,                soundM = nil,                            advanced = true    },
             { key = "va_poison_pool",               label = "Poison Pool",                      privateID = 1222484,                soundM = nil,                            advanced = true    },
@@ -42,10 +42,10 @@ CCS_Spells_Mplus_VoidscarArena = {
         abilities = {
             { key = "va_unstable_singularity",      label = "Unstable Singularity",             privateID = 1264188,                soundM = nil,                            advanced = true    },
             { key = "va_cosmic_crash",              label = "Cosmic Crash",                     privateID = 1300372,                soundM = nil,                            advanced = true    },
-            --{ key = "va_cosmic_crash_2",            label = "Cosmic Crash 2",                   privateID = 1227197,                soundM = nil,                            advanced = true    }, -- Private aura
-            --{ key = "va_unstable_singularity_2",    label = "Unstable Singularity 2",           privateID = 1248130,                soundM = nil,                            advanced = true    }, -- Private aura
+            { key = "va_cosmic_crash_2",            label = "Cosmic Crash 2",                   privateID = 1227197,                soundM = nil,                            advanced = true    }, -- Private aura
+            { key = "va_unstable_singularity_2",    label = "Unstable Singularity 2",           privateID = 1248130,                soundM = nil,                            advanced = true    }, -- Private aura
             { key = "va_condensed_mass",            label = "Condensed Mass",                   privateID = 1287450,                soundM = nil,                            advanced = true    }, -- Important one to track
-            --{ key = "va_condensed_mass_stack",      label = "Condensed Mass (stack)",           privateID = 1263983,                soundM = nil,                            advanced = true    }, -- Maybe stacking variant
+            { key = "va_condensed_mass_stack",      label = "Condensed Mass (stack)",           privateID = 1263983,                soundM = nil,                            advanced = true    }, -- Maybe stacking variant
             { key = "va_void_cascade",              label = "Void Cascade",                     privateID = 1227247,                soundM = nil,                            advanced = true    },
         },
     },
