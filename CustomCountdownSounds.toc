@@ -1,8 +1,8 @@
-## Interface:  120007, 120100
+## Interface:  120005, 120007, 120100
 ## Title: Custom Countdown Sounds
 ## Notes: Private aura sounds for Midnight bosses.
 ## Author: Knofle
-## Version: 0.6.0
+## Version: 0.6.1
 ## SavedVariables: CCS_DB
 ## IconTexture: Interface\AddOns\CustomCountdownSounds\icon.tga
 
@@ -16,7 +16,9 @@ Libs\AceDBOptions-3.0\AceDBOptions-3.0.lua
 Libs\AceConfig-3.0\AceConfig-3.0.xml
 Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 
+sounds.lua
 core.lua
+widgets.lua
 ui.lua
 
 # 12.0.x raids

@@ -1,7 +1,6 @@
 -- core.lua
 
 local addonName = ...
-local LSM = LibStub("LibSharedMedia-3.0")
 
 CCS = CCS or {}
 
@@ -19,36 +18,7 @@ function CCS.OnReady(fn)
     end
 end
 
---------------------------------------------------
--- LSM Registration
---------------------------------------------------
-
-local basePath = "Interface\\AddOns\\" .. addonName .. "\\sounds\\"
-
-local lsmSounds = {
-    "break","breath","burn","dot","marked","move","soak","spread","targeted","drop","fixate","pull","stack","absorb","debuff","charge","clear","knock","spikes","skull","cross","square","moon","triangle","diamond","star","circle","in","out","right","left","magic","curse","poison","bleed"
-}
-
-for _, name in ipairs(lsmSounds) do
-    LSM:Register("sound", "CCS: " .. name, basePath .. name .. ".ogg")
-end
-
-
-local soundPaths = {}
-for _, name in ipairs(lsmSounds) do
-    soundPaths[name] = basePath .. name .. ".ogg"
-end
-
-local function resolvePath(s)
-    if not s then return nil end
-    if type(s) ~= "string" then return nil end
-    if s:sub(1, 5) == "file:" then
-        return basePath .. s:sub(6) .. ".ogg"
-    end
-    if soundPaths[s] then return soundPaths[s] end
-    return LSM:Fetch("sound", s)
-end
-CCS.ResolvePath = resolvePath
+-- Sound registration and CCS.ResolvePath now live in sounds.lua (loaded first).
 
 --------------------------------------------------
 -- Difficulty
@@ -105,25 +75,25 @@ CCS_Spells_Raid = CCS_Spells_Raid or {}
 local _, _, _, tocVersion = GetBuildInfo()
 
 local mplusDungeons_120 = {
-    { key = "magisters_terrace",       label = "Magister's Terrace",      color = "|cffda8b45", data = function() return CCS_Spells_Mplus_MagistersTerrace      end },
-    { key = "maisara_caverns",         label = "Maisara Caverns",         color = "|cff7ec87e", data = function() return CCS_Spells_Mplus_MaisaraCaverns         end },
-    { key = "nexus_point_xenas",       label = "Nexus-Point Xenas",       color = "|cff6aacdc", data = function() return CCS_Spells_Mplus_NexusPointXenas        end },
-    { key = "windrunner_spire",        label = "Windrunner Spire",        color = "|cffe8c46a", data = function() return CCS_Spells_Mplus_WindrunnerSpire        end },
-    { key = "algethar_academy",        label = "Algeth'ar Academy",       color = "|cffc17de8", data = function() return CCS_Spells_Mplus_AlgetharAcademy        end },
-    { key = "pit_of_saron",            label = "Pit of Saron",            color = "|cff9dbde8", data = function() return CCS_Spells_Mplus_PitOfSaron             end },
-    { key = "seat_of_the_triumvirate", label = "Seat of the Triumvirate", color = "|cffdc8fe0", data = function() return CCS_Spells_Mplus_SeatOfTheTriumvirate   end },
-    { key = "skyreach",                label = "Skyreach",                color = "|cffe8e06a", data = function() return CCS_Spells_Mplus_Skyreach               end },
+    { key = "magisters_terrace",       label = "Magister's Terrace",      color = "|cffda8b45", icon = 7439625, data = function() return CCS_Spells_Mplus_MagistersTerrace      end },
+    { key = "maisara_caverns",         label = "Maisara Caverns",         color = "|cff7ec87e", icon = 7322719, data = function() return CCS_Spells_Mplus_MaisaraCaverns         end },
+    { key = "nexus_point_xenas",       label = "Nexus-Point Xenas",       color = "|cff6aacdc", icon = 7553062, data = function() return CCS_Spells_Mplus_NexusPointXenas        end },
+    { key = "windrunner_spire",        label = "Windrunner Spire",        color = "|cffe8c46a", icon = 7266215, data = function() return CCS_Spells_Mplus_WindrunnerSpire        end },
+    { key = "algethar_academy",        label = "Algeth'ar Academy",       color = "|cffc17de8", icon = 4578414, data = function() return CCS_Spells_Mplus_AlgetharAcademy        end },
+    { key = "pit_of_saron",            label = "Pit of Saron",            color = "|cff9dbde8", icon = 343641, data = function() return CCS_Spells_Mplus_PitOfSaron             end },
+    { key = "seat_of_the_triumvirate", label = "Seat of the Triumvirate", color = "|cffdc8fe0", icon = 1711340, data = function() return CCS_Spells_Mplus_SeatOfTheTriumvirate   end },
+    { key = "skyreach",                label = "Skyreach",                color = "|cffe8e06a", icon = 1002596, data = function() return CCS_Spells_Mplus_Skyreach               end },
 }
 
 local mplusDungeons_121 = {
-    { key = "murder_row",              label = "Murder Row",              color = "|cffe07a3a", data = function() return CCS_Spells_Mplus_MurderRow             end },
-    { key = "den_of_nalorakk",         label = "Den of Nalorakk",         color = "|cff6dab5a", data = function() return CCS_Spells_Mplus_DenOfNalorakk         end },
-    { key = "blinding_vale",           label = "The Blinding Vale",       color = "|cff8ae0d4", data = function() return CCS_Spells_Mplus_BlindingVale          end },
-    { key = "voidscar_arena",          label = "Voidscar Arena",          color = "|cff8e5acb", data = function() return CCS_Spells_Mplus_VoidscarArena         end },
-    { key = "altar_of_fangs",          label = "Altar of Fangs",          color = "|cffc04a4a", data = function() return CCS_Spells_Mplus_AltarOfFangs          end },
-    { key = "ruby_life_pools",         label = "Ruby Life Pools",         color = "|cffe04a5a", data = function() return CCS_Spells_Mplus_RubyLifePools         end },
-    { key = "temple_of_sethraliss",    label = "Temple of Sethraliss",    color = "|cff5cb46c", data = function() return CCS_Spells_Mplus_TempleOfSethraliss    end },
-    { key = "kings_rest",              label = "Kings' Rest",             color = "|cffd4af37", data = function() return CCS_Spells_Mplus_KingsRest             end },
+    { key = "murder_row",              label = "Murder Row",              color = "|cffe07a3a", icon = 7266213, data = function() return CCS_Spells_Mplus_MurderRow             end },
+    { key = "den_of_nalorakk",         label = "Den of Nalorakk",         color = "|cff6dab5a", icon = 7266214, data = function() return CCS_Spells_Mplus_DenOfNalorakk         end },
+    { key = "blinding_vale",           label = "The Blinding Vale",       color = "|cff8ae0d4", icon = 7354408, data = function() return CCS_Spells_Mplus_BlindingVale          end },
+    { key = "voidscar_arena",          label = "Voidscar Arena",          color = "|cff8e5acb", icon = 7439626, data = function() return CCS_Spells_Mplus_VoidscarArena         end },
+    { key = "altar_of_fangs",          label = "Altar of Fangs",          color = "|cffc04a4a", icon = 7956175, data = function() return CCS_Spells_Mplus_AltarOfFangs          end },
+    { key = "ruby_life_pools",         label = "Ruby Life Pools",         color = "|cffe04a5a", icon = 4578416, data = function() return CCS_Spells_Mplus_RubyLifePools         end },
+    { key = "temple_of_sethraliss",    label = "Temple of Sethraliss",    color = "|cff5cb46c", icon = 2011143, data = function() return CCS_Spells_Mplus_TempleOfSethraliss    end },
+    { key = "kings_rest",              label = "Kings' Rest",             color = "|cffd4af37", icon = 2011123, data = function() return CCS_Spells_Mplus_KingsRest             end },
 }
 
 CCS.MplusDungeons = (tocVersion >= 120100) and mplusDungeons_121 or mplusDungeons_120
@@ -189,6 +159,23 @@ function CCS.GetDB()
     return db
 end
 
+-- Stamp each entry with its dungeon colour and return a combined list.
+local function combineDungeons(onlyKey)
+    local out = {}
+    for _, dungeon in ipairs(CCS.MplusDungeons) do
+        if not onlyKey or dungeon.key == onlyKey then
+            local data = dungeon.data()
+            if data then
+                for _, entry in ipairs(data) do
+                    entry._color = dungeon.color
+                    out[#out + 1] = entry
+                end
+            end
+        end
+    end
+    return out
+end
+
 local function applyModule()
     local m = (db and db.char.module) or "raid"
     if not CCS.MPLUS_ENABLED and m == "mplus" then
@@ -197,45 +184,17 @@ local function applyModule()
     end
     if m == "mplus" and CCS.MPLUS_ENABLED then
         local key = (db and db.char.activeDungeon) or "__all__"
-        if key == "__all__" then
-            local combined = {}
-            for _, dungeon in ipairs(CCS.MplusDungeons) do
-                local data = dungeon.data()
-                if data then
-                    for _, entry in ipairs(data) do
-                        entry._color = dungeon.color
-                        combined[#combined + 1] = entry
-                    end
-                end
-            end
-            CCS_Spells = combined
-            return
-        end
-        for _, dungeon in ipairs(CCS.MplusDungeons) do
-            if dungeon.key == key then
-                local data = dungeon.data()
-                if data then
-                    for _, entry in ipairs(data) do
-                        entry._color = dungeon.color
-                    end
-                end
-                CCS_Spells = data or {}
+        if key ~= "__all__" then
+            -- Single dungeon; combineDungeons stamps colour and filters.
+            local single = combineDungeons(key)
+            if #single > 0 then
+                CCS_Spells = single
                 return
             end
+            -- Stored dungeon no longer exists; fall through to "all".
+            if db then db.char.activeDungeon = "__all__" end
         end
-        -- Stored dungeon no longer exists, reset.
-        if db then db.char.activeDungeon = "__all__" end
-        local combined = {}
-        for _, dungeon in ipairs(CCS.MplusDungeons) do
-            local data = dungeon.data()
-            if data then
-                for _, entry in ipairs(data) do
-                    entry._color = dungeon.color
-                    combined[#combined + 1] = entry
-                end
-            end
-        end
-        CCS_Spells = combined
+        CCS_Spells = combineDungeons(nil)
     else
         local raidKey = (db and db.char.activeRaid) or "__all__"
         if raidKey == "__all__" then
@@ -370,9 +329,8 @@ function CCS.SetShowAllBoss(bossKey, val)
     CCS.RefreshSounds()
 end
 
--- Opt-in means the user is actively producing sound: at least one of the
--- warn/countdown ticks is on. Overrides alone don't count — an untick
--- should hide the ability even if a custom sound was chosen.
+-- opt-in = at least one warn/countdown tick is on. a chosen sound alone
+-- doesn't count, an unticked ability stays hidden.
 function CCS.IsAbilityOptedIn(key)
     if not key then return false end
     local p = CCS.GetProfile()
@@ -383,12 +341,13 @@ function CCS.IsAbilityOptedIn(key)
 end
 
 -- Advanced abilities are visible if the boss's "Show non-default" is on
--- OR if the user has opted them in (any override / enabled tick).
+-- OR if the user has opted them in (any enabled tick).
 -- Non-advanced abilities are always active.
 function CCS.IsAbilityActive(abilityKey)
     if not abilityKey then return true end
-    if CCS_Spells_Raid then
-        for _, entry in ipairs(CCS_Spells_Raid) do
+
+    local function scan(entries)
+        for _, entry in ipairs(entries) do
             if entry.abilities then
                 for _, ab in ipairs(entry.abilities) do
                     if ab.key == abilityKey then
@@ -402,25 +361,19 @@ function CCS.IsAbilityActive(abilityKey)
                 end
             end
         end
+        return nil  -- not found in this set
+    end
+
+    if CCS_Spells_Raid then
+        local r = scan(CCS_Spells_Raid)
+        if r ~= nil then return r end
     end
     if CCS.MplusDungeons then
         for _, dungeon in ipairs(CCS.MplusDungeons) do
             local data = dungeon.data()
             if data then
-                for _, entry in ipairs(data) do
-                    if entry.abilities then
-                        for _, ab in ipairs(entry.abilities) do
-                            if ab.key == abilityKey then
-                                if ab.advanced
-                                   and not CCS.GetShowAllBoss(entry.bossKey)
-                                   and not CCS.IsAbilityOptedIn(abilityKey) then
-                                    return false
-                                end
-                                return true
-                            end
-                        end
-                    end
-                end
+                local r = scan(data)
+                if r ~= nil then return r end
             end
         end
     end
@@ -492,38 +445,38 @@ local function iterateModuleSpells(module, fn)
     end
 end
 
+-- Shared helpers for the bulk warn/countdown operations below.
+local function fieldHasWarn(f)
+    if f == nil then return false end
+    if type(f) == "table" then return f[1] ~= nil end
+    return true
+end
+
+-- An advanced ability is only bulk-touchable when it's visible: its boss's
+-- "Show non-default" is on, or the user has opted it in.
+local function abilityVisibleForBulk(ability, bossKey)
+    if not ability.advanced then return true end
+    if CCS.GetShowAllBoss(bossKey) then return true end
+    return CCS.IsAbilityOptedIn(ability.key)
+end
+
 -- Bulk enable/disable warns.
 --   - Only touches abilities that are visible right now.
---   - Only touches abilities that have something to enable
---     (a default warn sound or a user override).
+--   - Enable needs a default/override; disable also unticks tick-only.
 function CCS.SetAllWarn(val, module)
     module = module or CCS.GetModule()
     local p = CCS.GetProfile()
     iterateModuleSpells(module, function(ability, _, bossKey)
-        local function fieldHasWarn(f)
-            if f == nil then return false end
-            if type(f) == "table" then return f[1] ~= nil end
-            return true
-        end
+        if not abilityVisibleForBulk(ability, bossKey) then return end
         local hasDefault  = fieldHasWarn(ability.soundH) or fieldHasWarn(ability.soundM)
         local hasOverride = p.warnOverride[ability.key] ~= nil
         local currentlyOn = p.warnEnabled[ability.key] == true
-        -- Advanced: only touch if visible.
-        if ability.advanced
-           and not CCS.GetShowAllBoss(bossKey)
-           and not CCS.IsAbilityOptedIn(ability.key) then
-            return
-        end
         if val then
-            -- Enable: need something to enable.
             if hasDefault or hasOverride then
                 p.warnEnabled[ability.key] = true
             end
-        else
-            -- Disable: also untick tick-only abilities.
-            if hasDefault or hasOverride or currentlyOn then
-                p.warnEnabled[ability.key] = false
-            end
+        elseif hasDefault or hasOverride or currentlyOn then
+            p.warnEnabled[ability.key] = false
         end
     end)
 end
@@ -533,6 +486,7 @@ function CCS.SetAllCD(val, module)
     module = module or CCS.GetModule()
     local p = CCS.GetProfile()
     iterateModuleSpells(module, function(ability, isMplus, bossKey)
+        if not abilityVisibleForBulk(ability, bossKey) then return end
         local function hasDefault(diff)
             local s = diff == "M" and ability.soundM or (diff ~= "M" and ability.soundH)
             return type(s) == "table" and s[2] ~= nil
@@ -543,22 +497,15 @@ function CCS.SetAllCD(val, module)
         local function currentlyOn(diff)
             return p.countdownEnabled[ability.key] and p.countdownEnabled[ability.key][diff] == true
         end
-        if ability.advanced
-           and not CCS.GetShowAllBoss(bossKey)
-           and not CCS.IsAbilityOptedIn(ability.key) then
-            return
-        end
         local function apply(diff)
             if val then
                 if hasDefault(diff) or hasOverride(diff) then
                     p.countdownEnabled[ability.key] = p.countdownEnabled[ability.key] or {}
                     p.countdownEnabled[ability.key][diff] = true
                 end
-            else
-                if hasDefault(diff) or hasOverride(diff) or currentlyOn(diff) then
-                    p.countdownEnabled[ability.key] = p.countdownEnabled[ability.key] or {}
-                    p.countdownEnabled[ability.key][diff] = false
-                end
+            elseif hasDefault(diff) or hasOverride(diff) or currentlyOn(diff) then
+                p.countdownEnabled[ability.key] = p.countdownEnabled[ability.key] or {}
+                p.countdownEnabled[ability.key][diff] = false
             end
         end
         if isMplus then
@@ -574,28 +521,18 @@ end
 function CCS.GetBulkWarnState(module)
     module = module or CCS.GetModule()
     local p = CCS.GetProfile()
-    local seen, onCount, offCount = 0, 0, 0
+    local seen, onCount = 0, 0
     iterateModuleSpells(module, function(ability, _, bossKey)
-        local function fieldHasWarn(f)
-            if f == nil then return false end
-            if type(f) == "table" then return f[1] ~= nil end
-            return true
-        end
+        if not abilityVisibleForBulk(ability, bossKey) then return end
         local hasDefault  = fieldHasWarn(ability.soundH) or fieldHasWarn(ability.soundM)
         local hasOverride = p.warnOverride[ability.key] ~= nil
         local currentlyOn = p.warnEnabled[ability.key] == true
         if not hasDefault and not hasOverride and not currentlyOn then return end
-        if ability.advanced
-           and not CCS.GetShowAllBoss(bossKey)
-           and not CCS.IsAbilityOptedIn(ability.key) then
-            return
-        end
         seen = seen + 1
-        if currentlyOn then onCount = onCount + 1 else offCount = offCount + 1 end
+        if currentlyOn then onCount = onCount + 1 end
     end)
-    if seen == 0 then return "all_off" end
+    if seen == 0 or onCount == 0 then return "all_off" end
     if onCount == seen then return "all_on" end
-    if offCount == seen then return "all_off" end
     return "mixed"
 end
 
@@ -603,8 +540,9 @@ end
 function CCS.GetBulkCDState(module)
     module = module or CCS.GetModule()
     local p = CCS.GetProfile()
-    local seen, onCount, offCount = 0, 0, 0
+    local seen, onCount = 0, 0
     iterateModuleSpells(module, function(ability, isMplus, bossKey)
+        if not abilityVisibleForBulk(ability, bossKey) then return end
         local function hasDefault(diff)
             local s = diff == "M" and ability.soundM or ability.soundH
             return type(s) == "table" and s[2] ~= nil
@@ -615,22 +553,16 @@ function CCS.GetBulkCDState(module)
         local function isEnabled(diff)
             return p.countdownEnabled[ability.key] and p.countdownEnabled[ability.key][diff] == true
         end
-        if ability.advanced
-           and not CCS.GetShowAllBoss(bossKey)
-           and not CCS.IsAbilityOptedIn(ability.key) then
-            return
-        end
         local diffs = isMplus and {"M"} or {"H", "M"}
         for _, d in ipairs(diffs) do
             if hasDefault(d) or hasOverride(d) or isEnabled(d) then
                 seen = seen + 1
-                if isEnabled(d) then onCount = onCount + 1 else offCount = offCount + 1 end
+                if isEnabled(d) then onCount = onCount + 1 end
             end
         end
     end)
-    if seen == 0 then return "all_off" end
+    if seen == 0 or onCount == 0 then return "all_off" end
     if onCount == seen then return "all_on" end
-    if offCount == seen then return "all_off" end
     return "mixed"
 end
 
@@ -667,7 +599,7 @@ local function resolveAbilitySounds(ability, diff)
         end
         local warnKey = CCS.GetWarnOverride(ability.key) or defaultWarn
         if warnKey then
-            local p = resolvePath(warnKey)
+            local p = CCS.ResolvePath(warnKey)
             if p then
                 paths[#paths + 1] = p
             else
@@ -682,7 +614,7 @@ local function resolveAbilitySounds(ability, diff)
         local ctOn = CCS.GetCustomTimerOverride()
         local cdKey = (ctOn and CCS.GetCountdownOverride(ability.key, diff)) or defaultCD
         if cdKey then
-            local p = resolvePath(cdKey)
+            local p = CCS.ResolvePath(cdKey)
             if p then
                 paths[#paths + 1] = p
             else
@@ -982,10 +914,8 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             db.char.minimapHidden = nil
         end
 
-        -- Migrate showAllBosses from db.char to current profile (moved so
-        -- profile save/copy includes it). One-shot: current char's toggles
-        -- carry forward into the profile they were using, then char store
-        -- is cleared so it doesn't overwrite later profile switches.
+        -- move showAllBosses from db.char into the profile (one-shot), then
+        -- clear the char store so profile switches aren't overwritten.
         if db.char.showAllBosses then
             local p = CCS.GetProfile()
             for k, v in pairs(db.char.showAllBosses) do

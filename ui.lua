@@ -31,6 +31,27 @@ local function stripButtonBorder(btn)
     if btn.Right  then btn.Right:Hide()  end
 end
 
+-- brighten a widget's border on hover.
+-- reads the resting colour instead of hardcoding it, or hovering an
+-- advanced (green) checkbox would wipe the green on leave.
+local function addBorderHighlight(widget, border, r, g, b)
+    if not widget or not border then return end
+    r, g, b = r or 0.8, g or 0.8, b or 0.8
+
+    widget:HookScript("OnEnter", function()
+        if border._ccsHover then return end
+        border._ccsHover = true
+        border._ccsR, border._ccsG, border._ccsB, border._ccsA = border:GetBackdropBorderColor()
+        border:SetBackdropBorderColor(r, g, b, 1)
+    end)
+    widget:HookScript("OnLeave", function()
+        if not border._ccsHover then return end
+        border._ccsHover = false
+        border:SetBackdropBorderColor(border._ccsR or 0.35, border._ccsG or 0.35,
+                                      border._ccsB or 0.35, border._ccsA or 1)
+    end)
+end
+
 local function stripCheckBorder(cb)
     local nt = cb:GetNormalTexture();    if nt then nt:SetTexture("") end
     local pt = cb:GetPushedTexture();    if pt then pt:SetTexture("") end
@@ -58,6 +79,7 @@ local function stripCheckBorder(cb)
         border:SetBackdropBorderColor(0.35, 0.35, 0.35, 1)
         border:SetFrameLevel(cb:GetFrameLevel() + 1)
         cb._ccsBorder = border
+        addBorderHighlight(cb, border)
     end
 end
 
@@ -70,386 +92,41 @@ local function setAdvancedCbBorder(cb, isAdvanced)
     end
 end
 
+-- tooltip on a frame.
+-- some widgets set their own OnEnter first (dropdown border highlight), so
+-- chain those instead of replacing them.
+-- don't switch to HookScript: rebindAll re-tooltips pooled headers every
+-- rebuild, so the handlers would stack.
 local function addTooltip(frame, title, body)
     frame:EnableMouse(true)
+
+    if not frame._ccsTipHooked then
+        frame._ccsPrevEnter = frame:GetScript("OnEnter")
+        frame._ccsPrevLeave = frame:GetScript("OnLeave")
+        frame._ccsTipHooked = true
+    end
+
+    frame._ccsTipTitle = title
+    frame._ccsTipBody  = body
+
     frame:SetScript("OnEnter", function(self)
+        if self._ccsPrevEnter then self._ccsPrevEnter(self) end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine(title, 1, 1, 1)
-        if body then GameTooltip:AddLine(body, 0.8, 0.8, 0.8, true) end
+        GameTooltip:AddLine(self._ccsTipTitle, 1, 1, 1)
+        if self._ccsTipBody then GameTooltip:AddLine(self._ccsTipBody, 0.8, 0.8, 0.8, true) end
         GameTooltip:Show()
     end)
-    frame:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    frame:SetScript("OnLeave", function(self)
+        if self._ccsPrevLeave then self._ccsPrevLeave(self) end
+        GameTooltip:Hide()
+    end)
 end
 
--- Preview a sound by value key (LSM name, "file:name", or CCS shortname).
-local function previewSound(value)
-    if not value or value == "__default__" then return end
-    local path = CCS.ResolvePath and CCS.ResolvePath(value)
-    if path then PlaySoundFile(path, CCS.GetChannel()) end
-end
 
 local CATEGORY_NAME = "Custom Countdown Sounds"
 
-------------------------------------------------------------
--- Dropdown widget
-------------------------------------------------------------
-
-local CCS_DropdownPopup
-
-local function CCS_GetOrCreatePopup()
-    if CCS_DropdownPopup then return CCS_DropdownPopup end
-
-    local MAX_VISIBLE = 13
-    local ROW_H    = 16
-    local PAD      = 6
-    local SCROLL_W = 14
-    local SEARCH_H = 22
-    local PREV_W   = 22
-
-    local popup = CreateFrame("Frame", "CCS_DropdownPopup", UIParent, "BackdropTemplate")
-    popup:SetFrameStrata("HIGH")
-    popup:SetFrameLevel(200)
-    popup:SetBackdrop({
-        bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-        edgeSize = 12,
-        insets   = { left=3, right=3, top=3, bottom=3 },
-    })
-    popup:SetBackdropColor(0.1, 0.1, 0.1, 0.97)
-    popup:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
-    popup:Hide()
-    popup._buttons = {}
-    popup._owner   = nil
-    popup._offset  = 0
-
-    local searchBox = CreateFrame("EditBox", nil, popup, "BackdropTemplate")
-    searchBox:SetHeight(SEARCH_H)
-    searchBox:SetPoint("TOPLEFT",  popup, "TOPLEFT",  PAD, -PAD)
-    searchBox:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -(PAD + SCROLL_W + 2), -PAD)
-    searchBox:SetBackdrop({
-        bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-        edgeSize = 8,
-        insets   = { left=3, right=3, top=3, bottom=3 },
-    })
-    searchBox:SetBackdropColor(0.05, 0.05, 0.05, 1)
-    searchBox:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
-    searchBox:SetFontObject("GameFontHighlightSmall")
-    searchBox:SetTextInsets(6, 6, 0, 0)
-    searchBox:SetAutoFocus(false)
-    searchBox:SetMaxLetters(64)
-    searchBox:Hide()
-    popup._searchBox = searchBox
-
-    local searchHint = searchBox:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    searchHint:SetPoint("LEFT",  searchBox, "LEFT",  6, 0)
-    searchHint:SetPoint("RIGHT", searchBox, "RIGHT", -6, 0)
-    searchHint:SetJustifyH("LEFT")
-    searchHint:SetText("Type to search...")
-
-    local clipper = CreateFrame("Frame", nil, popup)
-    clipper:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -(PAD + SCROLL_W + 2), PAD)
-    popup._clipper = clipper
-
-    local track = CreateFrame("Frame", nil, popup, "BackdropTemplate")
-    track:SetWidth(SCROLL_W)
-    track:SetPoint("TOPRIGHT",    popup, "TOPRIGHT",    -PAD, -PAD)
-    track:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -PAD,  PAD)
-    track:SetBackdrop({
-        bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-        edgeSize = 6,
-        insets   = { left=2, right=2, top=2, bottom=2 },
-    })
-    track:SetBackdropColor(0.05, 0.05, 0.05, 1)
-    track:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
-
-    local thumb = track:CreateTexture(nil, "OVERLAY")
-    thumb:SetColorTexture(0.5, 0.5, 0.5, 0.8)
-    popup._thumb = thumb
-
-    local function UpdateThumb()
-        local total   = popup._total or 0
-        local visible = math.min(total, MAX_VISIBLE)
-        if total <= visible then thumb:Hide(); return end
-        thumb:Show()
-        local trackH = track:GetHeight()
-        local ratio  = visible / total
-        local thumbH = math.max(16, trackH * ratio)
-        local travel = trackH - thumbH
-        local frac   = (popup._offset or 0) / math.max(1, total - visible)
-        thumb:SetHeight(thumbH)
-        thumb:ClearAllPoints()
-        thumb:SetPoint("TOPLEFT",  track, "TOPLEFT",  2, -(travel * frac))
-        thumb:SetPoint("TOPRIGHT", track, "TOPRIGHT", -2, -(travel * frac))
-    end
-
-    local function Refresh()
-        local items  = popup._items or {}
-        local owner  = popup._owner
-        local offset = popup._offset or 0
-        local wide   = owner and owner._widePreview
-        for i = 1, MAX_VISIBLE do
-            local row  = popup._buttons[i]
-            local item = items[offset + i]
-            if item then
-                row._text:ClearAllPoints()
-                row._text:SetPoint("LEFT", row._check, "RIGHT", 2, 0)
-                if wide then
-                    row._text:SetPoint("RIGHT", row, "RIGHT", -(PREV_W + 6), 0)
-                    row._prev:Show()
-                else
-                    row._text:SetPoint("RIGHT", row, "RIGHT", -4, 0)
-                    row._prev:Hide()
-                end
-                row._text:SetText(item.label)
-                row._check:SetText(item.value == (owner and owner._value) and "|cff00ff00*|r" or "")
-                row:ClearAllPoints()
-                row:SetPoint("TOPLEFT",  clipper, "TOPLEFT",  0, -(i-1)*ROW_H)
-                row:SetPoint("TOPRIGHT", clipper, "TOPRIGHT", 0, -(i-1)*ROW_H)
-                row:Show()
-                row:SetScript("OnClick", function()
-                    if owner then
-                        owner._value = item.value
-                        owner._label:SetText(item.shortLabel or item.label)
-                        if owner._noGreen or item.value == "__default__" then
-                            owner:SetBackdropColor(0.15, 0.15, 0.15, 1)
-                        else
-                            owner:SetBackdropColor(0.05, 0.28, 0.05, 1)
-                        end
-                        if owner._onSelect then owner._onSelect(item.value) end
-                    end
-                    popup:Hide()
-                end)
-                row._prev:SetScript("OnClick", function()
-                    previewSound(item.value == "__default__" and popup._default or item.value)
-                end)
-            else
-                row:Hide()
-            end
-        end
-        UpdateThumb()
-    end
-    popup._refresh = Refresh
-
-    searchBox:SetScript("OnTextChanged", function(self)
-        local txt = self:GetText()
-        searchHint:SetShown(txt == "")
-        local query = txt:lower()
-        if query == "" then
-            popup._items = popup._allItems
-        else
-            local filtered = {}
-            for _, item in ipairs(popup._allItems) do
-                if item.label:lower():find(query, 1, true) then
-                    filtered[#filtered + 1] = item
-                end
-            end
-            popup._items = filtered
-        end
-        popup._offset = 0
-        popup._total  = #popup._items
-        Refresh()
-    end)
-    searchBox:SetScript("OnEscapePressed", function() popup:Hide() end)
-
-    popup:EnableMouseWheel(true)
-    popup:SetScript("OnMouseWheel", function(_, delta)
-        local total   = popup._total or 0
-        local visible = math.min(total, MAX_VISIBLE)
-        popup._offset = math.max(0, math.min(popup._offset - delta, total - visible))
-        Refresh()
-    end)
-
-    track:EnableMouse(true)
-    track:SetScript("OnMouseDown", function(_, btn)
-        if btn ~= "LeftButton" then return end
-        local total   = popup._total or 0
-        local visible = math.min(total, MAX_VISIBLE)
-        if total <= visible then return end
-        track:SetScript("OnUpdate", function()
-            local _, my = GetCursorPosition()
-            local scale = track:GetEffectiveScale()
-            local frac  = math.max(0, math.min(1, (track:GetTop() - my/scale) / track:GetHeight()))
-            popup._offset = math.floor(frac * (total - visible) + 0.5)
-            Refresh()
-        end)
-    end)
-    track:SetScript("OnMouseUp", function() track:SetScript("OnUpdate", nil) end)
-
-    for i = 1, MAX_VISIBLE do
-        local row = CreateFrame("Button", nil, clipper)
-        row:SetHeight(ROW_H)
-        row._check = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row._check:SetPoint("LEFT", row, "LEFT", 6, 0)
-        row._check:SetWidth(14)
-        row._check:SetJustifyH("LEFT")
-        row._text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row._text:SetPoint("LEFT", row._check, "RIGHT", 2, 0)
-        row._text:SetJustifyH("LEFT")
-        local hl = row:CreateTexture(nil, "HIGHLIGHT")
-        hl:SetAllPoints(); hl:SetColorTexture(1, 1, 1, 0.1)
-        local prev = CreateFrame("Button", nil, row)
-        prev:SetSize(PREV_W, ROW_H)
-        prev:SetPoint("RIGHT", row, "RIGHT", -2, 0)
-        local prevHL = prev:CreateTexture(nil, "HIGHLIGHT")
-        prevHL:SetAllPoints(); prevHL:SetColorTexture(0.6, 0.8, 1, 0.15)
-        local prevTex = prev:CreateTexture(nil, "ARTWORK")
-        prevTex:SetSize(PREV_W - 6, PREV_W - 6)
-        prevTex:SetPoint("CENTER")
-        prevTex:SetAtlas("common-icon-sound")
-        prevTex:SetVertexColor(0.6, 0.8, 1, 0.7)
-        prev:SetScript("OnEnter", function() prevTex:SetVertexColor(0.8, 1, 1, 1) end)
-        prev:SetScript("OnLeave", function() prevTex:SetVertexColor(0.6, 0.8, 1, 0.7) end)
-        row._prev = prev
-        row:Hide()
-        popup._buttons[i] = row
-    end
-
-    local catcher = CreateFrame("Frame", nil, UIParent)
-    catcher:SetAllPoints(UIParent)
-    catcher:SetFrameStrata("HIGH")
-    catcher:SetFrameLevel(199)
-    catcher:Hide()
-    catcher:EnableMouse(true)
-    catcher:SetScript("OnMouseDown", function() popup:Hide() end)
-    popup._catcher = catcher
-
-    popup:SetScript("OnHide", function()
-        catcher:Hide()
-        searchBox:SetText("")
-        searchBox:ClearFocus()
-    end)
-
-    CCS_DropdownPopup = popup
-    return popup
-end
-
-local function CCS_CreateDropdown(parent, width, height, fontSize)
-    local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
-    btn:SetSize(width or 120, height or 22)
-    btn:SetBackdrop({
-        bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-        edgeSize = 10,
-        insets   = { left=3, right=3, top=3, bottom=3 },
-    })
-    btn:SetBackdropColor(0.15, 0.15, 0.15, 1)
-    btn:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
-
-    local fontFace = select(1, GameFontHighlightSmall:GetFont())
-    local fontFlags = select(3, GameFontHighlightSmall:GetFont())
-    btn._label = btn:CreateFontString(nil, "OVERLAY")
-    btn._label:SetFont(fontFace, fontSize or 10, fontFlags)
-    btn._label:SetPoint("LEFT",  btn, "LEFT",  8,   0)
-    btn._label:SetPoint("RIGHT", btn, "RIGHT", -18, 0)
-    btn._label:SetJustifyH("LEFT")
-    btn._label:SetText("--")
-
-    local arrow = btn:CreateFontString(nil, "OVERLAY")
-    arrow:SetFont(fontFace, fontSize or 10, fontFlags)
-    arrow:SetPoint("RIGHT", btn, "RIGHT", -6, 0)
-    arrow:SetText("v")
-    arrow:SetTextColor(0.8, 0.8, 0.8)
-    btn._arrow = arrow
-
-    btn._items    = {}
-    btn._value    = nil
-    btn._onSelect = nil
-    btn._enabled  = true
-
-    btn:SetScript("OnEnter", function(self)
-        if self._enabled then self:SetBackdropBorderColor(0.8, 0.8, 0.8, 1) end
-    end)
-    btn:SetScript("OnLeave", function(self)
-        if self._enabled then self:SetBackdropBorderColor(0.4, 0.4, 0.4, 1) end
-    end)
-    btn:SetScript("OnClick", function(self)
-        if not self._enabled then return end
-        local popup = CCS_GetOrCreatePopup()
-        if popup:IsShown() and popup._owner == self then popup:Hide(); return end
-
-        local MAX_VISIBLE = 13
-        local ROW_H    = 16
-        local PAD      = 6
-        local SCROLL_W = 14
-        local SEARCH_H = 22
-        local hasSearch = self._widePreview
-
-        popup._owner    = self
-        popup._allItems = self._items
-        popup._items    = self._items
-        popup._offset   = 0
-        popup._total    = #self._items
-        popup._default  = self._defaultSound
-
-        if hasSearch then
-            popup._searchBox:Show()
-            popup._searchBox:SetText("")
-            popup._clipper:SetPoint("TOPLEFT", popup, "TOPLEFT", PAD, -(PAD + SEARCH_H + 4))
-        else
-            popup._searchBox:Hide()
-            popup._clipper:SetPoint("TOPLEFT", popup, "TOPLEFT", PAD, -PAD)
-        end
-
-        local visible = math.min(#self._items, MAX_VISIBLE)
-        local pw = hasSearch and (math.max(width * 2, 260) + SCROLL_W + PAD)
-                             or  ((self._popupWidth or width or 110) + SCROLL_W + PAD)
-        local extraH = hasSearch and (SEARCH_H + 4) or 0
-        popup:SetSize(pw, PAD*2 + visible*ROW_H + extraH)
-        -- Match the owner's scale so the popup (and its fonts) resize with the
-        -- window. The popup lives on UIParent, so use the owner's effective
-        -- scale relative to UIParent.
-        local ownerEff = self:GetEffectiveScale()
-        local puEff    = UIParent:GetEffectiveScale()
-        popup:SetScale(ownerEff / puEff)
-        popup:ClearAllPoints()
-        popup:SetPoint("TOPLEFT", self, "BOTTOMLEFT", 0, -2)
-        popup._refresh()
-        popup:Show()
-        popup._catcher:Show()
-        if hasSearch then popup._searchBox:SetFocus() end
-    end)
-
-    function btn:SetItems(items)  self._items = items or {} end
-    function btn:GetValue()       return self._value end
-    function btn:SetOnSelect(fn)  self._onSelect = fn end
-
-    function btn:SetValue(value)
-        self._value = value
-        for _, item in ipairs(self._items) do
-            if item.value == value then
-                self._label:SetText(item.shortLabel or item.label)
-                if self._noGreen or value == "__default__" then
-                    self:SetBackdropColor(0.15, 0.15, 0.15, 1)
-                else
-                    self:SetBackdropColor(0.05, 0.28, 0.05, 1)
-                end
-                return
-            end
-        end
-        self._label:SetText("--")
-        self:SetBackdropColor(0.15, 0.15, 0.15, 1)
-    end
-
-    function btn:SetEnabled(enabled)
-        self._enabled = enabled and true or false
-        if self._enabled then
-            self._label:SetTextColor(1,   1,   1)
-            self._arrow:SetTextColor(0.8, 0.8, 0.8)
-            local isOverride = (not self._noGreen) and self._value and self._value ~= "__default__"
-            self:SetBackdropColor(isOverride and 0.05 or 0.15, isOverride and 0.28 or 0.15, isOverride and 0.05 or 0.15, 1)
-            self:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
-        else
-            self._label:SetTextColor(0.5, 0.5, 0.5)
-            self._arrow:SetTextColor(0.4, 0.4, 0.4)
-            self:SetBackdropColor(0.1, 0.1, 0.1, 1)
-            self:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
-        end
-    end
-
-    return btn
-end
+-- dropdown widget lives in widgets.lua
+local CCS_CreateDropdown = CCS.CreateDropdown
 
 ------------------------------------------------------------
 -- Sound / item helpers
@@ -691,11 +368,22 @@ local RAID_COLORS = {
     ["The Tidebound Grotto"] = "|cff4dabd7",
 }
 
+local RAID_ICONS = {
+    -- 12.0.x
+    ["March on Quel'Danas"] = 7454100,
+    ["The Dreamrift"]       = 7448202,
+    ["The Voidspire"]       = 7490911,
+    ["Sporefall"]           = 7852823,   -- NOTE: given as "Rotmire", verify the name matches
+    -- 12.1.0
+    ["The Venomous Abyss"]  = 8039569,
+    ["The Tidebound Grotto"] = 3012069,  -- placeholder
+}
+
 ------------------------------------------------------------
 -- Frame pool
 ------------------------------------------------------------
 
-local _pool = { rows={}, headers={}, raidBgs={}, seps={}, showAlls={}, divider=nil }
+local _pool = { rows={}, headers={}, raidBgs={}, seps={}, divider=nil }
 
 -- Pick one spellID from any privateID shape, for icon/tooltip.
 local function getScalarID(pid)
@@ -764,6 +452,7 @@ local function acquireRow(scrollChild, idx)
             GameTooltip:Show()
         end)
         btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        addBorderHighlight(btn, border)
         return btn
     end
 
@@ -963,6 +652,11 @@ local function acquireRow(scrollChild, idx)
             GameTooltip:SetSpellByID(scalarID)
         else
             GameTooltip:SetText(a.label or a.key, 1, 1, 1)
+        end
+        -- Author's note (green), if the data file provides one.
+        if a.desc and a.desc ~= "" then
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine(a.desc, 0.4, 1, 0.4, true)
         end
         GameTooltip:AddLine(" ")
         local idLines = getPrivateIDLines(pid)
@@ -1235,27 +929,6 @@ local function acquireHeader(scrollChild, idx)
     return _pool.headers[idx]
 end
 
-local SHOW_ALL_H = 14  -- height of the Show all row
-
-local function acquireShowAll(scrollChild, idx)
-    if not _pool.showAlls[idx] then
-        local frame = CreateFrame("Frame", nil, scrollChild)
-        frame:SetHeight(SHOW_ALL_H)
-        local cb = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-        cb:SetSize(14, 14)
-        stripCheckBorder(cb)
-        cb:SetPoint("LEFT", frame, "LEFT", INDENT, 0)
-        local lbl = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-        lbl:SetText("|cffaaaaaa Show non-default|r")
-        lbl:SetPoint("LEFT", cb, "RIGHT", 2, 0)
-        addTooltip(cb, "Show non-default", "Show additional trackable auras for this boss that have no default warning or countdown set.")
-        frame._cb  = cb
-        frame._lbl = lbl
-        _pool.showAlls[idx] = frame
-    end
-    return _pool.showAlls[idx]
-end
-
 local function acquireRaidBg(scrollChild, idx)
     if not _pool.raidBgs[idx] then
         local bg  = CreateFrame("Frame", nil, scrollChild)
@@ -1288,28 +961,49 @@ local function acquireDivider(scrollChild)
     return _pool.divider
 end
 
+
 ------------------------------------------------------------
--- One-time frame creation (first panel show)
+-- Deferred pool pre-warm
 ------------------------------------------------------------
 
-local function BuildFramePool(scrollChild)
-    local rowIdx  = 0
-    local hdrCount, raidCount, sepCount = 0, 0, 0
-    for _, entry in ipairs(CCS_Spells) do
-        if entry.abilities then
-            hdrCount = hdrCount + 1
-            if entry.raid then raidCount = raidCount + 1; sepCount = sepCount + 2 end
-            sepCount = sepCount + 1
-            for _ in ipairs(entry.abilities) do
-                rowIdx = rowIdx + 1
-                acquireRow(scrollChild, rowIdx)
-            end
-        end
+-- rebindAll builds rows on demand, so we don't need the whole pool up front.
+-- building all ~225 rows at once was the first-open hitch (only ~66 show by
+-- default). instead fill the rest in the background once the window is up.
+
+local PREWARM_PER_TICK = 5   -- rows per frame, small enough to not hitch
+local _prewarmTicker
+
+local function StopPrewarm()
+    if _prewarmTicker then
+        _prewarmTicker:Cancel()
+        _prewarmTicker = nil
     end
-    for i = 1, hdrCount    do acquireHeader(scrollChild,  i) end
-    for i = 1, raidCount   do acquireRaidBg(scrollChild,  i) end
-    for i = 1, sepCount    do acquireSep(scrollChild,     i) end
-    acquireDivider(scrollChild)
+end
+
+local function StartPrewarm(scrollChild)
+    StopPrewarm()
+
+    local total = 0
+    for _, entry in ipairs(CCS_Spells) do
+        if entry.abilities then total = total + #entry.abilities end
+    end
+    if #_pool.rows >= total then return end
+
+    local idx = #_pool.rows
+    _prewarmTicker = C_Timer.NewTicker(0, function(ticker)
+        for _ = 1, PREWARM_PER_TICK do
+            idx = idx + 1
+            if idx > total then
+                ticker:Cancel()
+                _prewarmTicker = nil
+                return
+            end
+            local r = acquireRow(scrollChild, idx)
+            -- hide until a later rebind positions them
+            r.leftCell:Hide()
+            r.rightCell:Hide()
+        end
+    end)
 end
 
 ------------------------------------------------------------
@@ -1324,24 +1018,36 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
     local hdrIdx   = 0
     local raidIdx  = 0
     local sepIdx   = 0
-    local showAllIdx = 0
     local lastRaid = nil
     local divTopY  = nil
 
-    local divider = _pool.divider
+    local divider = acquireDivider(scrollChild)
 
     local filtering = searchQuery ~= ""
     local function abilityMatches(ability)
         return (ability.label or ""):lower():find(searchQuery, 1, true) ~= nil
     end
+    -- True if the query matches the boss/section name (color codes stripped).
+    local function bossMatches(entry)
+        local name = entry.boss or entry.section or ""
+        name = name:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+        return name:lower():find(searchQuery, 1, true) ~= nil
+    end
+    -- An entry is shown when filtering if its boss name matches (whole section)
+    -- or any of its abilities match.
+    local function entryMatches(entry)
+        if bossMatches(entry) then return true end
+        for _, ab in ipairs(entry.abilities) do
+            if abilityMatches(ab) then return true end
+        end
+        return false
+    end
 
     for _, entry in ipairs(CCS_Spells) do
-        if entry.abilities and (not filtering or (function()
-            for _, ab in ipairs(entry.abilities) do
-                if abilityMatches(ab) then return true end
-            end
-            return false
-        end)()) then
+        if entry.abilities and (not filtering or entryMatches(entry)) then
+
+        -- When the boss name itself matches, show all its abilities.
+        local bossHit = filtering and bossMatches(entry)
 
         local justRaidHdr = false
 
@@ -1472,9 +1178,9 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
         for _, ability in ipairs(entry.abilities) do
             local visible
             if filtering then
-                -- When searching, show any ability whose name matches,
-                -- regardless of the advanced / show-non-default gate.
-                visible = abilityMatches(ability)
+                -- Boss name matched: show the whole section. Otherwise show
+                -- only abilities whose name matches, ignoring the advanced gate.
+                visible = bossHit or abilityMatches(ability)
             else
                 visible = not ability.advanced
                           or showAll
@@ -1509,7 +1215,6 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
     for i = hdrIdx + 1, #_pool.headers do _pool.headers[i]:Hide() end
     for i = raidIdx + 1, #_pool.raidBgs do _pool.raidBgs[i]:Hide() end
     for i = sepIdx  + 1, #_pool.seps   do _pool.seps[i]:Hide() end
-    for i = showAllIdx + 1, #_pool.showAlls do _pool.showAlls[i]:Hide() end
 
     local contentH = math.abs(y) + 16
     scrollChild:SetHeight(contentH)
@@ -1579,12 +1284,6 @@ local function BuildCCSOptions(panel, isStandalone)
     helpBtn:SetText("Help")
     stripButtonBorder(helpBtn)
     addTooltip(helpBtn, "Help", "How this addon works.")
-
-    local inst = topBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    inst:SetPoint("TOPLEFT",  title,    "BOTTOMLEFT", 0,    -6)
-    inst:SetPoint("TOPRIGHT", topBlock, "TOPRIGHT",  -16,    0)
-    inst:SetJustifyH("LEFT"); inst:SetWordWrap(true)
-    inst:SetText("")
 
     -- Confirm dialog (for Defaults button)
     local confirmDialog = CreateFrame("Frame", nil, topBlock, "BackdropTemplate")
@@ -1896,13 +1595,6 @@ local function BuildCCSOptions(panel, isStandalone)
     headerBar:SetPoint("TOPLEFT",  topBlock, "BOTTOMLEFT",  0, 0)
     headerBar:SetPoint("TOPRIGHT", topBlock, "BOTTOMRIGHT", 0, 0)
 
-    local leftHdrTitle = headerBar:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-    leftHdrTitle:SetText("")
-    local rightHdrTitle = headerBar:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-    rightHdrTitle:SetText("")
-    local rightHdrSub = headerBar:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    rightHdrSub:SetText("")
-
     -- Global "Manual Mode (Advanced)" checkbox
     local durationOverrideCB = CreateFrame("CheckButton", nil, headerBar, "UICheckButtonTemplate")
     durationOverrideCB:SetSize(16, 16)
@@ -2019,6 +1711,8 @@ local function BuildCCSOptions(panel, isStandalone)
     local tabButtons = {}
 
     -- "All" tab at the top
+    local TAB_ICON = 24   -- dungeon icon size in the tab strip (tabs are TAB_H tall)
+
     local allTab = CreateFrame("Button", nil, tabStrip, "UIPanelButtonTemplate")
     allTab:SetHeight(TAB_H)
     allTab:SetPoint("TOPLEFT",  tabStrip, "TOPLEFT",  4,  -TAB_PAD)
@@ -2027,7 +1721,8 @@ local function BuildCCSOptions(panel, isStandalone)
     stripButtonBorder(allTab)
     local allFs = allTab:GetFontString()
     if allFs then
-        allFs:SetPoint("LEFT",  allTab, "LEFT",  6, 0)
+        -- line up with the dungeon tabs' icon space
+        allFs:SetPoint("LEFT",  allTab, "LEFT",  5 + TAB_ICON + 4, 0)
         allFs:SetPoint("RIGHT", allTab, "RIGHT", -6, 0)
         allFs:SetJustifyH("LEFT"); allFs:SetWordWrap(false); allFs:SetNonSpaceWrap(false)
     end
@@ -2041,9 +1736,17 @@ local function BuildCCSOptions(panel, isStandalone)
         tab:SetPoint("TOPRIGHT", tabStrip, "TOPRIGHT", -4, -i*(TAB_H+TAB_GAP) - TAB_PAD)
         tab:SetText((dungeon.color or "") .. dungeon.label .. "|r")
         stripButtonBorder(tab)
+        if dungeon.icon then
+            local ic = tab:CreateTexture(nil, "ARTWORK")
+            ic:SetSize(TAB_ICON, TAB_ICON)
+            ic:SetPoint("LEFT", tab, "LEFT", 5, 0)
+            ic:SetTexture(dungeon.icon)
+            ic:SetTexCoord(0.07, 0.93, 0.07, 0.93)  -- trim border
+            tab._icon = ic
+        end
         local fs = tab:GetFontString()
         if fs then
-            fs:SetPoint("LEFT",  tab, "LEFT",  6, 0)
+            fs:SetPoint("LEFT",  tab, "LEFT",  5 + TAB_ICON + 4, 0)
             fs:SetPoint("RIGHT", tab, "RIGHT", -6, 0)
             fs:SetJustifyH("LEFT"); fs:SetWordWrap(false); fs:SetNonSpaceWrap(false)
         end
@@ -2057,7 +1760,7 @@ local function BuildCCSOptions(panel, isStandalone)
             local fs = tab:GetFontString()
             if fs then maxW = math.max(maxW, fs:GetStringWidth()) end
         end
-        local w = maxW + 6 + 4 + 4
+        local w = maxW + 5 + TAB_ICON + 4 + 6 + 4 + 4
         self:SetWidth(w)
         self:SetScript("OnShow", nil)
     end)
@@ -2068,6 +1771,14 @@ local function BuildCCSOptions(panel, isStandalone)
             local isActive = key == active
             setButtonBg(tab, isActive and 0.28 or 0.08, isActive and 0.28 or 0.08, isActive and 0.28 or 0.08)
             tab:SetAlpha(isActive and 1.0 or 0.75)
+            if tab._icon then
+                    if tab._icon.SetDesaturation then
+                    tab._icon:SetDesaturation(isActive and 0 or 0.4)
+                else
+                    tab._icon:SetDesaturated(not isActive)
+                end
+                tab._icon:SetAlpha(isActive and 1.0 or 0.85)
+            end
         end
     end
 
@@ -2092,7 +1803,8 @@ local function BuildCCSOptions(panel, isStandalone)
     stripButtonBorder(raidAllTab)
     local raidAllFs = raidAllTab:GetFontString()
     if raidAllFs then
-        raidAllFs:SetPoint("LEFT",  raidAllTab, "LEFT",  6, 0)
+        -- line up with the raid tabs' icon space
+        raidAllFs:SetPoint("LEFT",  raidAllTab, "LEFT",  5 + TAB_ICON + 4, 0)
         raidAllFs:SetPoint("RIGHT", raidAllTab, "RIGHT", -6, 0)
         raidAllFs:SetJustifyH("LEFT"); raidAllFs:SetWordWrap(false); raidAllFs:SetNonSpaceWrap(false)
     end
@@ -2107,9 +1819,18 @@ local function BuildCCSOptions(panel, isStandalone)
         local color = RAID_COLORS[raidName] or "|cffcccccc"
         tab:SetText(color .. raidName .. "|r")
         stripButtonBorder(tab)
+        local raidIcon = RAID_ICONS[raidName]
+        if raidIcon then
+            local ic = tab:CreateTexture(nil, "ARTWORK")
+            ic:SetSize(TAB_ICON, TAB_ICON)
+            ic:SetPoint("LEFT", tab, "LEFT", 5, 0)
+            ic:SetTexture(raidIcon)
+            ic:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+            tab._icon = ic
+        end
         local fs = tab:GetFontString()
         if fs then
-            fs:SetPoint("LEFT",  tab, "LEFT",  6, 0)
+            fs:SetPoint("LEFT",  tab, "LEFT",  5 + TAB_ICON + 4, 0)
             fs:SetPoint("RIGHT", tab, "RIGHT", -6, 0)
             fs:SetJustifyH("LEFT"); fs:SetWordWrap(false); fs:SetNonSpaceWrap(false)
         end
@@ -2123,7 +1844,7 @@ local function BuildCCSOptions(panel, isStandalone)
             local fs = tab:GetFontString()
             if fs then maxW = math.max(maxW, fs:GetStringWidth()) end
         end
-        self:SetWidth(maxW + 6 + 4 + 4)
+        self:SetWidth(maxW + 5 + TAB_ICON + 4 + 6 + 4 + 4)
         self:SetScript("OnShow", nil)
     end)
 
@@ -2133,6 +1854,14 @@ local function BuildCCSOptions(panel, isStandalone)
             local isActive = name == active
             setButtonBg(tab, isActive and 0.28 or 0.08, isActive and 0.28 or 0.08, isActive and 0.28 or 0.08)
             tab:SetAlpha(isActive and 1.0 or 0.75)
+            if tab._icon then
+                if tab._icon.SetDesaturation then
+                    tab._icon:SetDesaturation(isActive and 0 or 0.4)
+                else
+                    tab._icon:SetDesaturated(not isActive)
+                end
+                tab._icon:SetAlpha(isActive and 1.0 or 0.85)
+            end
         end
     end
 
@@ -2199,13 +1928,7 @@ local function BuildCCSOptions(panel, isStandalone)
     scrollChild:SetWidth(1); scrollChild:SetHeight(1)
     scroll:SetScrollChild(scrollChild)
 
-    local function updateHeaders(leftW, cdCx, totalWidth)
-        local warnDDCx = leftW - 8 - WARN_DROPDOWN_W / 2
-        leftHdrTitle:ClearAllPoints()
-        leftHdrTitle:SetPoint("CENTER", headerBar, "LEFT", warnDDCx - 20, 8)
-        rightHdrSub:ClearAllPoints()
-        rightHdrTitle:ClearAllPoints()
-
+    local function updateHeaders(totalWidth)
         warnBox:ClearAllPoints()
         warnBox:SetPoint("TOPLEFT", headerBar, "TOPLEFT", 0, 0)
         warnBox:SetHeight(BULK_BOX_H)
@@ -2225,15 +1948,6 @@ local function BuildCCSOptions(panel, isStandalone)
             CCS._searchBox:SetPoint("BOTTOMLEFT", headerBar, "BOTTOMLEFT", 20, 6)
             CCS._searchBox:SetWidth(math.max(120, math.floor((totalWidth or 700) * 0.30)))
         end
-
-        if CCS.GetModule() == "mplus" then
-            rightHdrSub:Hide()
-            rightHdrTitle:SetPoint("CENTER", headerBar, "LEFT", leftW + cdCx, 8)
-        else
-            rightHdrSub:Show()
-            rightHdrSub:SetPoint("CENTER",  headerBar, "LEFT", leftW + cdCx, -6)
-            rightHdrTitle:SetPoint("BOTTOM", rightHdrSub, "TOP", 0, 1)
-        end
     end
 
     local _leftW = nil  -- set on first build, stable thereafter
@@ -2241,10 +1955,9 @@ local function BuildCCSOptions(panel, isStandalone)
     fullRebuild = function()
         if not built or not _leftW then return end
         local w = scroll:GetWidth()
-        local cdCx = (RAID_HC_CHECKBOX_X + RAID_MYTHIC_DROPDOWN_X + COUNTDOWN_DROPDOWN_W) / 2
         moduleBox:SetShown(CCS.MPLUS_ENABLED)
         rebindAll(scrollChild, w, _leftW, CCS.GetModule() == "mplus")
-        updateHeaders(_leftW, cdCx, w)
+        updateHeaders(w)
         syncTabVisibility()
         updateScrollBar()
         if CCS._refreshBulkUnderlines then CCS._refreshBulkUnderlines() end
@@ -2340,13 +2053,14 @@ local function BuildCCSOptions(panel, isStandalone)
             scrollChild:SetWidth(w)
             _leftW = math.floor(w * LEFT_PANEL_FRACTION)
 
-            BuildFramePool(scrollChild)
-
-            local cdCx = (RAID_HC_CHECKBOX_X + RAID_MYTHIC_DROPDOWN_X + COUNTDOWN_DROPDOWN_W) / 2
+            -- rebindAll creates only the rows it actually shows.
             rebindAll(scrollChild, w, _leftW, CCS.GetModule() == "mplus")
-            updateHeaders(_leftW, cdCx, w)
+            updateHeaders(w)
             updateScrollBar()
             if CCS._refreshBulkUnderlines then CCS._refreshBulkUnderlines() end
+
+            -- Window is up; fill the rest of the pool in the background.
+            StartPrewarm(scrollChild)
         else
             -- Already built; re-apply module then resync.
             if CCS.ApplyModule then CCS.ApplyModule() end
@@ -2549,13 +2263,23 @@ end
 
 local standaloneWindow
 
+-- built at PLAYER_LOGIN to keep it off the loading screen.
+-- fallback build here in case /ccs somehow fires first.
+local function ensureStandaloneWindow()
+    if not standaloneWindow then
+        standaloneWindow = CreateStandaloneWindow()
+    end
+    return standaloneWindow
+end
+
 toggleStandalone = function()
     if InCombatLockdown() then
         print("|cffffff00CCS:|r Cannot open settings during combat.")
         return
     end
-    if not standaloneWindow then return end
-    standaloneWindow:SetShown(not standaloneWindow:IsShown())
+    local win = ensureStandaloneWindow()
+    if not win then return end
+    win:SetShown(not win:IsShown())
 end
 
 SLASH_CCS1 = "/ccs"
@@ -2633,35 +2357,17 @@ SlashCmdList["CCS"] = function(msg)
     if arg == "privatetest" then
         local hasGeneral = C_UnitAuras.AddAuraAppliedSound ~= nil
         local failed = 0
-        local sources = {
-            { label = "Raid",  data = CCS_Spells_Raid },
-        }
+        local sources = { { label = "Raid", data = CCS_Spells_Raid } }
         for _, dungeon in ipairs(CCS.MplusDungeons) do
             local data = dungeon.data()
-            if data then
-                sources[#sources + 1] = { label = dungeon.label, data = data }
-            end
+            if data then sources[#sources + 1] = { label = dungeon.label, data = data } end
         end
         for _, src in ipairs(sources) do
             for _, entry in ipairs(src.data) do
                 if entry.abilities then
                     for _, ability in ipairs(entry.abilities) do
-                        local pid = ability.privateID
-                        local ids = type(pid) == "table" and {} or { pid }
-                        if type(pid) == "table" then
-                            if pid.H or pid.M then
-                                for _, v in pairs(pid) do
-                                    if type(v) == "table" then
-                                        for _, id in ipairs(v) do ids[#ids+1] = id end
-                                    elseif type(v) == "number" then
-                                        ids[#ids+1] = v
-                                    end
-                                end
-                            else
-                                for _, id in ipairs(pid) do ids[#ids+1] = id end
-                            end
-                        end
-                        for _, id in ipairs(ids) do
+                        for _, line in ipairs(getPrivateIDLines(ability.privateID)) do
+                            local id = line.id
                             if id and id ~= 0 then
                                 if hasGeneral then
                                     if C_Spell and C_Spell.DoesSpellExist and not C_Spell.DoesSpellExist(id) then
@@ -2669,12 +2375,10 @@ SlashCmdList["CCS"] = function(msg)
                                             ability.key .. " (spellID " .. id .. ") [" .. src.label .. "]")
                                         failed = failed + 1
                                     end
-                                else
-                                    if not C_UnitAuras.AuraIsPrivate(id) then
-                                        print("|cffff9900CCS privatetest:|r |cffff5555NOT private:|r " ..
-                                            ability.key .. " (spellID " .. id .. ") [" .. src.label .. "]")
-                                        failed = failed + 1
-                                    end
+                                elseif not C_UnitAuras.AuraIsPrivate(id) then
+                                    print("|cffff9900CCS privatetest:|r |cffff5555NOT private:|r " ..
+                                        ability.key .. " (spellID " .. id .. ") [" .. src.label .. "]")
+                                    failed = failed + 1
                                 end
                             end
                         end
@@ -2682,18 +2386,13 @@ SlashCmdList["CCS"] = function(msg)
                 end
             end
         end
+        local tag = hasGeneral and "spelltest" or "privatetest"
         if failed == 0 then
-            if hasGeneral then
-                print("|cffffff00CCS spelltest:|r |cff00ff00All spell IDs exist.|r")
-            else
-                print("|cffffff00CCS privatetest:|r |cff00ff00All spell IDs are private auras.|r")
-            end
+            local msg2 = hasGeneral and "All spell IDs exist." or "All spell IDs are private auras."
+            print("|cffffff00CCS " .. tag .. ":|r |cff00ff00" .. msg2 .. "|r")
         else
-            if hasGeneral then
-                print("|cffffff00CCS spelltest:|r " .. failed .. " unknown spell ID(s) found.")
-            else
-                print("|cffffff00CCS privatetest:|r " .. failed .. " non-private spell ID(s) found.")
-            end
+            local msg2 = hasGeneral and " unknown spell ID(s) found." or " non-private spell ID(s) found."
+            print("|cffffff00CCS " .. tag .. ":|r " .. failed .. msg2)
         end
         return
     end
@@ -2747,11 +2446,21 @@ end
 
 local initFrame = CreateFrame("Frame")
 initFrame:RegisterEvent("ADDON_LOADED")
-initFrame:SetScript("OnEvent", function(self, _, name)
-    if name ~= addonName then return end
-    standaloneWindow = CreateStandaloneWindow()
-    Settings.RegisterAddOnCategory(Settings.RegisterCanvasLayoutCategory(CreateStubPanel(), CATEGORY_NAME))
-    CreateMinimapButton()
+initFrame:RegisterEvent("PLAYER_LOGIN")
+initFrame:SetScript("OnEvent", function(self, event, name)
+    if event == "ADDON_LOADED" then
+        if name ~= addonName then return end
+        -- register the options category early so it shows in the list
+        Settings.RegisterAddOnCategory(Settings.RegisterCanvasLayoutCategory(CreateStubPanel(), CATEGORY_NAME))
+        CreateMinimapButton()
+        self:UnregisterEvent("ADDON_LOADED")
+        return
+    end
 
-    self:UnregisterEvent("ADDON_LOADED")
+    if event == "PLAYER_LOGIN" then
+        -- build the window now, after the loading screen
+        ensureStandaloneWindow()
+        self:UnregisterEvent("PLAYER_LOGIN")
+        return
+    end
 end)
