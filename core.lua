@@ -611,8 +611,9 @@ local function resolveAbilitySounds(ability, diff)
     if CCS.IsCDEnabled(ability.key, diff) then
         local soundField = diff == "M" and ability.soundM or (diff ~= "M" and ability.soundH)
         local defaultCD = type(soundField) == "table" and soundField[2] or nil
-        local ctOn = CCS.GetCustomTimerOverride()
-        local cdKey = (ctOn and CCS.GetCountdownOverride(ability.key, diff)) or defaultCD
+        -- A user-set override is their choice and plays whether or not manual
+        -- mode is on; manual mode only governs whether they can edit it.
+        local cdKey = CCS.GetCountdownOverride(ability.key, diff) or defaultCD
         if cdKey then
             local p = CCS.ResolvePath(cdKey)
             if p then

@@ -306,8 +306,7 @@ local function testAbility(ability, difficulty)
     if CCS.IsCDEnabled(ability.key, difficulty) then
         local cdSoundField = difficulty == "M" and ability.soundM or ability.soundH
         local defaultCDKey = type(cdSoundField) == "table" and cdSoundField[2] or nil
-        local ctOn = CCS.GetCustomTimerOverride()
-        local resolvedCDKey = (ctOn and CCS.GetCountdownOverride(ability.key, difficulty)) or defaultCDKey
+        local resolvedCDKey = CCS.GetCountdownOverride(ability.key, difficulty) or defaultCDKey
         local cdSoundPath = resolvedCDKey and CCS.ResolvePath and CCS.ResolvePath(resolvedCDKey)
         if cdSoundPath then
             PlaySoundFile(cdSoundPath, CCS.GetChannel())
@@ -521,6 +520,25 @@ local function acquireRow(scrollChild, idx)
     cdNoLbl:SetText("|cff555555No default|r")
     local cdValLbl = rightCell:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
 
+    -- "Set Default" button: resets this spell's ticks, warn sound and timers.
+    -- Only shown when the spell carries a custom warn or countdown override.
+    local resetBtn = CreateFrame("Button", nil, rightCell)
+    resetBtn:SetSize(64, ROW_HEIGHT)
+    local resetBg = resetBtn:CreateTexture(nil, "BACKGROUND")
+    resetBg:SetAllPoints(); resetBg:SetColorTexture(0.06, 0.06, 0.06, 0.95)
+    local resetBorder = CreateFrame("Frame", nil, resetBtn, "BackdropTemplate")
+    resetBorder:SetAllPoints()
+    resetBorder:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 2 })
+    resetBorder:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
+    local resetFs = resetBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    resetFs:SetAllPoints(); resetFs:SetJustifyH("CENTER"); resetFs:SetJustifyV("MIDDLE")
+    resetFs:SetText("|cffaaaaaaSet Default|r")
+    local resetHl = resetBtn:CreateTexture(nil, "HIGHLIGHT")
+    resetHl:SetAllPoints(); resetHl:SetColorTexture(1, 1, 1, 0.08)
+    resetBtn:SetPoint("RIGHT", rightCell, "RIGHT", -RIGHT_CELL_PAD, 0)
+    addBorderHighlight(resetBtn, resetBorder)
+    resetBtn:Hide()
+
     -- Row state
     local r = {
         leftCell=leftCell, rightCell=rightCell,
@@ -529,13 +547,31 @@ local function acquireRow(scrollChild, idx)
         hLbl=hLbl, hCB=hCB, hDD=hDD, hNoLbl=hNoLbl, hValLbl=hValLbl,
         mLbl=mLbl, mCB=mCB, mDD=mDD, mNoLbl=mNoLbl, mValLbl=mValLbl,
         cdCB=cdCB, cdDD=cdDD, cdNoLbl=cdNoLbl, cdValLbl=cdValLbl,
+        resetBtn=resetBtn,
         _ability=nil, _isMplus=false,
         _hDefaultCD=nil, _mDefaultCD=nil, _cdDefaultCD=nil,
         _hOver=nil, _mOver=nil, _cdOver=nil,
-        _warnNoDefault=false, _hNoDefault=false, _mNoDefault=false,
+        _warnNoDefault=false,
     }
 
     -- Visibility refreshers.
+
+    -- True if the user has set any custom warn or countdown sound on this spell.
+    local function hasOverride(a)
+        if not a then return false end
+        if CCS.GetWarnOverride(a.key) ~= nil then return true end
+        if CCS.GetCountdownOverride(a.key, "H") ~= nil then return true end
+        if CCS.GetCountdownOverride(a.key, "M") ~= nil then return true end
+        return false
+    end
+
+    -- Show "Set Default" only when a custom sound override exists.
+    local function refreshResetBtn()
+        local a = r._ability
+        resetBtn:SetShown(a ~= nil and hasOverride(a))
+    end
+    r.refreshResetBtn = refreshResetBtn
+
     local function refreshTestBtn()
         local a = r._ability; if not a then return end
         local hasWarn = not r._warnNoDefault or CCS.isWarnEnabled(a.key)
@@ -565,7 +601,7 @@ local function acquireRow(scrollChild, idx)
         if not a then hLbl:Hide();  hCB:Hide(); hDD:Hide(); hNoLbl:Hide(); hValLbl:Hide(); return end
         local ctOn = CCS.GetCustomTimerOverride()
         local cbOn = hCB:GetChecked()
-        local activeKey = ctOn and (r._hOver or r._hDefaultCD) or r._hDefaultCD
+        local activeKey = r._hOver or r._hDefaultCD
         if ctOn and cbOn then
             hLbl:Show(); hCB:Show()
             hDD:Show(); hDD:SetEnabled(true)
@@ -575,8 +611,14 @@ local function acquireRow(scrollChild, idx)
             hNoLbl:Show(); hDD:Hide(); hValLbl:Hide()
         elseif activeKey then
             hLbl:Show(); hCB:Show()
-            hValLbl:SetText("|cffcccccc" .. shortCountdownLabel(activeKey) .. "|r")
+            local col = r._hOver and "|cff40ff40" or "|cffcccccc"
+            hValLbl:SetText(col .. shortCountdownLabel(activeKey) .. "|r")
             hValLbl:Show(); hDD:Hide(); hNoLbl:Hide()
+        elseif cbOn then
+            -- Ticked but no active key (manual-only CD, manual mode off).
+            -- Keep the box visible so it can be unticked; nothing to play.
+            hLbl:Show(); hCB:Show()
+            hNoLbl:Show(); hDD:Hide(); hValLbl:Hide()
         else
             hLbl:Hide(); hCB:Hide()
             hDD:Hide(); hNoLbl:Hide(); hValLbl:Hide()
@@ -588,7 +630,7 @@ local function acquireRow(scrollChild, idx)
         if not a then mLbl:Hide();  mCB:Hide(); mDD:Hide(); mNoLbl:Hide(); mValLbl:Hide(); return end
         local ctOn = CCS.GetCustomTimerOverride()
         local cbOn = mCB:GetChecked()
-        local activeKey = ctOn and (r._mOver or r._mDefaultCD) or r._mDefaultCD
+        local activeKey = r._mOver or r._mDefaultCD
         if ctOn and cbOn then
             mLbl:Show(); mCB:Show()
             mDD:Show(); mDD:SetEnabled(true)
@@ -598,8 +640,14 @@ local function acquireRow(scrollChild, idx)
             mNoLbl:Show(); mDD:Hide(); mValLbl:Hide()
         elseif activeKey then
             mLbl:Show(); mCB:Show()
-            mValLbl:SetText("|cffcccccc" .. shortCountdownLabel(activeKey) .. "|r")
+            local col = r._mOver and "|cff40ff40" or "|cffcccccc"
+            mValLbl:SetText(col .. shortCountdownLabel(activeKey) .. "|r")
             mValLbl:Show(); mDD:Hide(); mNoLbl:Hide()
+        elseif cbOn then
+            -- Ticked but no active key (manual-only CD, manual mode off).
+            -- Keep the box visible so it can be unticked; nothing to play.
+            mLbl:Show(); mCB:Show()
+            mNoLbl:Show(); mDD:Hide(); mValLbl:Hide()
         else
             mLbl:Hide(); mCB:Hide()
             mDD:Hide(); mNoLbl:Hide(); mValLbl:Hide()
@@ -611,7 +659,7 @@ local function acquireRow(scrollChild, idx)
         if not a then cdCB:Hide(); cdDD:Hide(); cdNoLbl:Hide(); cdValLbl:Hide(); return end
         local ctOn = CCS.GetCustomTimerOverride()
         local cbOn = cdCB:GetChecked()
-        local activeKey = ctOn and (r._cdOver or r._cdDefaultCD) or r._cdDefaultCD
+        local activeKey = r._cdOver or r._cdDefaultCD
         if ctOn and cbOn then
             cdCB:Show(); cdDD:Show(); cdDD:SetEnabled(true)
             cdNoLbl:Hide(); cdValLbl:Hide()
@@ -619,8 +667,13 @@ local function acquireRow(scrollChild, idx)
             cdCB:Show(); cdNoLbl:Show(); cdDD:Hide(); cdValLbl:Hide()
         elseif activeKey then
             cdCB:Show()
-            cdValLbl:SetText("|cffcccccc" .. shortCountdownLabel(activeKey) .. "|r")
+            local col = r._cdOver and "|cff40ff40" or "|cffcccccc"
+            cdValLbl:SetText(col .. shortCountdownLabel(activeKey) .. "|r")
             cdValLbl:Show(); cdDD:Hide(); cdNoLbl:Hide()
+        elseif cbOn then
+            -- Ticked but no active key (manual-only CD, manual mode off).
+            -- Keep the box visible so it can be unticked; nothing to play.
+            cdCB:Show(); cdNoLbl:Show(); cdDD:Hide(); cdValLbl:Hide()
         else
             cdCB:Hide(); cdDD:Hide(); cdNoLbl:Hide(); cdValLbl:Hide()
         end
@@ -685,68 +738,69 @@ local function acquireRow(scrollChild, idx)
         end
     end
 
+    -- Every control edits the DB then needs the same follow-up. Centralising it
+    -- keeps the six handlers from drifting apart.
+    --   changedTick: a warn/countdown checkbox moved (may change visibility)
+    local function afterChange(a, changedTick)
+        CCS.RefreshAbility(a.key, a)
+        r.syncFromDB()
+        r.refreshCbBorders()
+        refreshResetBtn()
+        if changedTick and CCS._refreshBulkUnderlines then
+            CCS._refreshBulkUnderlines()
+        end
+        if changedTick then maybeRebuildForVisibility(a) end
+    end
+
     warnCB:SetScript("OnClick", function(self)
         withCombatGuard(function()
             local a = r._ability; if not a then return end
-            local en = self:GetChecked()
-            CCS.SetWarnEnabled(a.key, en)
-            CCS.RefreshAbility(a.key, a)
-            warnDD:SetEnabled(en)
-            refreshWarnDD()
-            if CCS._refreshBulkUnderlines then CCS._refreshBulkUnderlines() end
-            maybeRebuildForVisibility(a)
+            CCS.SetWarnEnabled(a.key, self:GetChecked())
+            afterChange(a, true)
         end)
     end)
     warnDD:SetOnSelect(function(v)
         withCombatGuard(function()
             local a = r._ability; if not a then return end
             CCS.SetWarnOverride(a.key, v ~= "__default__" and v or nil)
-            CCS.RefreshAbility(a.key, a)
+            afterChange(a, false)
         end)
     end)
     hCB:SetScript("OnClick", function(self)
         withCombatGuard(function()
             local a = r._ability; if not a then return end
             CCS.SetCDEnabled(a.key, "H", self:GetChecked())
-            CCS.RefreshAbility(a.key, a); refreshHDD()
-            if CCS._refreshBulkUnderlines then CCS._refreshBulkUnderlines() end
-            maybeRebuildForVisibility(a)
+            afterChange(a, true)
         end)
     end)
     hDD:SetOnSelect(function(v)
         withCombatGuard(function()
             local a = r._ability; if not a then return end
             r._hOver = v ~= "__default__" and v or nil
-            r._hNoDefault = (r._hDefaultCD == nil and r._hOver == nil)
             CCS.SetCountdownOverride(a.key, "H", r._hOver)
-            CCS.RefreshAbility(a.key, a); refreshHDD()
+            afterChange(a, false)
         end)
     end)
     mCB:SetScript("OnClick", function(self)
         withCombatGuard(function()
             local a = r._ability; if not a then return end
             CCS.SetCDEnabled(a.key, "M", self:GetChecked())
-            CCS.RefreshAbility(a.key, a); refreshMDD()
-            if CCS._refreshBulkUnderlines then CCS._refreshBulkUnderlines() end
-            maybeRebuildForVisibility(a)
+            afterChange(a, true)
         end)
     end)
     mDD:SetOnSelect(function(v)
         withCombatGuard(function()
             local a = r._ability; if not a then return end
             r._mOver = v ~= "__default__" and v or nil
-            r._mNoDefault = (r._mDefaultCD == nil and r._mOver == nil)
             CCS.SetCountdownOverride(a.key, "M", r._mOver)
-            CCS.RefreshAbility(a.key, a); refreshMDD()
+            afterChange(a, false)
         end)
     end)
     cdCB:SetScript("OnClick", function(self)
         withCombatGuard(function()
             local a = r._ability; if not a then return end
             CCS.SetCDEnabled(a.key, "M", self:GetChecked())
-            CCS.RefreshAbility(a.key, a); refreshCdDD()
-            if CCS._refreshBulkUnderlines then CCS._refreshBulkUnderlines() end
-            maybeRebuildForVisibility(a)
+            afterChange(a, true)
         end)
     end)
     cdDD:SetOnSelect(function(v)
@@ -754,7 +808,25 @@ local function acquireRow(scrollChild, idx)
             local a = r._ability; if not a then return end
             r._cdOver = v ~= "__default__" and v or nil
             CCS.SetCountdownOverride(a.key, "M", r._cdOver)
-            CCS.RefreshAbility(a.key, a); refreshCdDD()
+            afterChange(a, false)
+        end)
+    end)
+
+    resetBtn:SetScript("OnClick", function()
+        withCombatGuard(function()
+            local a = r._ability; if not a then return end
+            -- Clear the custom warn sound and timers, but leave the tick state
+            -- alone. The ticks are what keep the row visible, so an opted-in
+            -- advanced spell stays put on its own.
+            CCS.SetWarnOverride(a.key, nil)
+            CCS.SetCountdownOverride(a.key, "H", nil)
+            CCS.SetCountdownOverride(a.key, "M", nil)
+            r._hOver, r._mOver, r._cdOver = nil, nil, nil
+            warnDD:SetValue("__default__")
+            hDD:SetValue("__default__")
+            mDD:SetValue("__default__")
+            cdDD:SetValue("__default__")
+            afterChange(a, false)
         end)
     end)
 
@@ -808,8 +880,6 @@ local function acquireRow(scrollChild, idx)
             r._mDefaultCD  = getDefaultCountdown(ability, "M")
             r._hOver       = CCS.GetCountdownOverride(ability.key, "H")
             r._mOver       = CCS.GetCountdownOverride(ability.key, "M")
-            r._hNoDefault  = (r._hDefaultCD == nil and r._hOver == nil)
-            r._mNoDefault  = (r._mDefaultCD == nil and r._mOver == nil)
             r._hCtrl.abilityKey = ability.key
             r._mCtrl.abilityKey = ability.key
 
@@ -852,12 +922,24 @@ local function acquireRow(scrollChild, idx)
             refreshHDD(); refreshMDD()
         end
 
-        -- Green border on the tickboxes marks advanced (non-default) abilities.
-        local adv = ability.advanced == true
-        setAdvancedCbBorder(warnCB, adv)
-        setAdvancedCbBorder(hCB, adv)
-        setAdvancedCbBorder(mCB, adv)
-        setAdvancedCbBorder(cdCB, adv)
+        -- Green border marks advanced abilities and any tickbox the user has
+        -- set a non-default value on (a warn or countdown override).
+        r.refreshCbBorders()
+        refreshResetBtn()
+    end
+
+    -- Recolour the tickbox borders: green for advanced abilities or any box
+    -- carrying a user override. Called on rebind and whenever an override changes.
+    function r.refreshCbBorders()
+        local a = r._ability; if not a then return end
+        local adv = a.advanced == true
+        setAdvancedCbBorder(warnCB, adv or (CCS.GetWarnOverride(a.key) ~= nil))
+        if r._isMplus then
+            setAdvancedCbBorder(cdCB, adv or (r._cdOver ~= nil))
+        else
+            setAdvancedCbBorder(hCB, adv or (r._hOver ~= nil))
+            setAdvancedCbBorder(mCB, adv or (r._mOver ~= nil))
+        end
     end
 
     -- Resync controls from DB without repositioning.
@@ -865,6 +947,7 @@ local function acquireRow(scrollChild, idx)
         local a = r._ability; if not a then return end
         local warnEn = CCS.isWarnEnabled(a.key)
         warnCB:SetChecked(warnEn)
+        warnDD:SetEnabled(warnEn)
         refreshWarnDD()
         if r._isMplus then
             cdCB:SetChecked(CCS.IsCDEnabled(a.key, "M"))
@@ -924,6 +1007,12 @@ local function acquireHeader(scrollChild, idx)
         local lbl = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
         lbl:SetPoint("LEFT", frame, "LEFT", 0, 0)
         frame._lbl = lbl
+        -- hover highlight, same as the ability rows
+        local hl = frame:CreateTexture(nil, "HIGHLIGHT")
+        hl:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 2)
+        hl:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -4, 3)
+        hl:SetColorTexture(1, 1, 1, 0.08)
+        frame:EnableMouse(true)
         _pool.headers[idx] = frame
     end
     return _pool.headers[idx]
@@ -1098,7 +1187,8 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
         local hdr = acquireHeader(scrollChild, hdrIdx)
         hdr:ClearAllPoints()
         hdr:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", INDENT, y)
-        hdr:SetSize(totalWidth - INDENT * 2, SECTION_HEADER_H)
+        -- stop the highlight and click area at the middle divider
+        hdr:SetSize(math.max(1, leftW - INDENT), SECTION_HEADER_H)
 
         local bossKey = entry.bossKey
         local hasAdvanced = false
