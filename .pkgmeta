@@ -11,12 +11,6 @@ externals:
     url: https://github.com/tekkub/libdatabroker-1-1.git
   Libs/AceDB-3.0:
     url: https://repos.curseforge.com/wow/ace3/trunk/AceDB-3.0
-  Libs/AceDBOptions-3.0:
-    url: https://repos.curseforge.com/wow/ace3/trunk/AceDBOptions-3.0
-  Libs/AceGUI-3.0:
-    url: https://repos.curseforge.com/wow/ace3/trunk/AceGUI-3.0
-  Libs/AceConfig-3.0:
-    url: https://repos.curseforge.com/wow/ace3/trunk/AceConfig-3.0
   Libs/LibDBIcon-1.0:
     url: https://repos.curseforge.com/wow/libdbicon-1-0/trunk/LibDBIcon-1.0
   Libs/LibSerialize:
