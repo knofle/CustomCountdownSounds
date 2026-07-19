@@ -60,6 +60,7 @@ local dbDefaults = {
     },
     char = {
         minimap              = { minimapPos = 225, hide = false },
+        font                 = nil,  -- LSM font name; nil = game default
         module               = "raid",
         activeDungeon        = "__all__",
         activeRaid           = "__all__",
@@ -157,6 +158,119 @@ end
 
 function CCS.GetDB()
     return db
+end
+
+--------------------------------------------------
+-- Profile export / import
+--------------------------------------------------
+-- A profile is shared as a printable string. We serialize only the settings
+-- that describe "how this profile sounds" (the four delta tables + channel),
+-- keyed by ability key so the string survives spell-ID changes. Personal
+-- display prefs (scale, font, module) live in char and are never exported.
+
+local EXPORT_PREFIX = "CCS1"  -- magic marker + format version
+
+-- Which profile fields travel with an export.
+local EXPORT_KEYS = {
+    warnEnabled = true, warnOverride = true,
+    countdownEnabled = true, countdownOverride = true,
+    channel = true, showAllBosses = true,
+}
+
+local function getLibs()
+    local ser = LibStub and LibStub("LibSerialize", true)
+    local def = LibStub and LibStub("LibDeflate", true)
+    return ser, def
+end
+
+-- Serialize the named profile (or current) into a printable string.
+-- Returns string, or nil + error message.
+function CCS.ExportProfile(profileName)
+    local ser, def = getLibs()
+    if not ser or not def then return nil, "Missing LibSerialize/LibDeflate." end
+    if not db then return nil, "No database." end
+
+    profileName = profileName or CCS.GetProfileName()
+    local src = (profileName == CCS.GetProfileName()) and db.profile or (db.sv.profiles and db.sv.profiles[profileName])
+    if not src then return nil, "Profile not found." end
+
+    local payload = { name = profileName }
+    for k in pairs(EXPORT_KEYS) do
+        if src[k] ~= nil then payload[k] = src[k] end
+    end
+    -- Font lives in char (per-character), not the profile, but it's part of
+    -- "how this looks" so we ship it with the export. Use a marker for the
+    -- default so an import can reset the font as well as set one.
+    payload.font = CCS.GetFont() or "__default__"
+
+    local serialized = ser:Serialize(payload)
+    local compressed = def:CompressDeflate(serialized, { level = 7 })
+    if not compressed then return nil, "Compression failed." end
+    return EXPORT_PREFIX .. def:EncodeForPrint(compressed)
+end
+
+-- Decode + validate an import string WITHOUT writing anything.
+-- Returns a clean payload table (with .name), or nil + error message.
+function CCS.DecodeProfile(str)
+    local ser, def = getLibs()
+    if not ser or not def then return nil, "Missing LibSerialize/LibDeflate." end
+    if type(str) ~= "string" then return nil, "No import string." end
+
+    str = str:gsub("%s+", "")  -- tolerate stray whitespace/newlines from pasting
+    local prefix = str:sub(1, #EXPORT_PREFIX)
+    if prefix ~= EXPORT_PREFIX then
+        return nil, "Not a Custom Countdown Sounds profile string."
+    end
+
+    local body = str:sub(#EXPORT_PREFIX + 1)
+    local decoded = def:DecodeForPrint(body)
+    if not decoded then return nil, "String is corrupt (decode failed)." end
+    local decompressed = def:DecompressDeflate(decoded)
+    if not decompressed then return nil, "String is corrupt (decompress failed)." end
+
+    local ok, payload = ser:Deserialize(decompressed)
+    if not ok or type(payload) ~= "table" then return nil, "String is corrupt (bad data)." end
+
+    -- Validate: every exported field must be a table (or the channel string),
+    -- and nothing unexpected gets through.
+    local clean = { name = type(payload.name) == "string" and payload.name or "Imported" }
+    for k in pairs(EXPORT_KEYS) do
+        local v = payload[k]
+        if k == "channel" then
+            if type(v) == "string" then clean.channel = v end
+        elseif type(v) == "table" then
+            clean[k] = v
+        end
+    end
+    if type(payload.font) == "string" then clean.font = payload.font end
+    return clean
+end
+
+-- Commit a decoded payload into a target profile, replacing its contents.
+-- targetName is created if it does not exist. Switches to it.
+function CCS.ImportProfile(payload, targetName)
+    if not db then return false, "No database." end
+    if type(payload) ~= "table" then return false, "Nothing to import." end
+    targetName = targetName or payload.name or "Imported"
+
+    db:SetProfile(targetName)          -- creates it if new, and makes it active
+    db:ResetProfile()                  -- replace: start from a clean profile
+    local p = CCS.GetProfile()
+    for k in pairs(EXPORT_KEYS) do
+        if k == "channel" then
+            if payload.channel then p.channel = payload.channel end
+        elseif payload[k] then
+            p[k] = payload[k]
+        end
+    end
+
+    if CCS._onProfileChange then CCS._onProfileChange() end
+    -- Font is per-character; apply it if the string carried one.
+    if payload.font ~= nil then
+        CCS.SetFont(payload.font ~= "__default__" and payload.font or nil)
+        if CCS._applyFont then CCS._applyFont() end
+    end
+    return true
 end
 
 -- Stamp each entry with its dungeon colour and return a combined list.
@@ -314,9 +428,13 @@ end
 function CCS.GetScale() return CCS.GetChar().scale or 1.0 end
 function CCS.SetScale(v)
     if type(v) == "number" then
-        CCS.GetChar().scale = math.max(0.5, math.min(2.0, v))
+        CCS.GetChar().scale = math.max(0.75, math.min(2.0, v))
     end
 end
+
+-- Font is stored as an LSM font name. nil means "use the game default".
+function CCS.GetFont() return CCS.GetChar().font end
+function CCS.SetFont(name) CCS.GetChar().font = name end
 
 function CCS.GetShowAllBoss(bossKey)
     if not bossKey then return false end

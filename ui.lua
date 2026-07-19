@@ -8,6 +8,82 @@ local searchQuery = ""
 -- Tiny utilities
 ------------------------------------------------------------
 
+-- Font registry. Every label the addon creates goes through makeFontString,
+-- which remembers it and its default font object. When the user picks a font,
+-- applyFont() re-fonts them all in one pass, keeping each one's own size.
+local _fontStrings = {}   -- { fs = <fontstring>, obj = "GameFont...", size = <n> }
+
+local function makeFontString(parent, layer, fontObject)
+    local fs = parent:CreateFontString(nil, layer, fontObject)
+    -- Capture the game-default face/size/flags. Restoring "Default" later uses
+    -- these via SetFont, the same call named fonts use, so the two paths render
+    -- identically (SetFontObject vs SetFont can differ by a fractional size,
+    -- which shifts text-width-driven layout).
+    local face, size, flags = fs:GetFont()
+    local entry = { fs = fs, face = face, size = size or 12, flags = flags or "" }
+    _fontStrings[#_fontStrings + 1] = entry
+    -- Apply the current font right away, so rows pooled after the initial
+    -- build (during prewarm) still match without a full re-font pass.
+    local name = CCS.GetFont and CCS.GetFont()
+    local LSM  = LibStub and LibStub("LibSharedMedia-3.0", true)
+    local path = name and LSM and LSM:Fetch("font", name, true)
+    if path then
+        fs:SetFont(path, entry.size, entry.flags)
+    end
+    return fs
+end
+
+local _templateBtnFS = {}  -- fontstrings from UIPanelButtonTemplate buttons
+
+local function applyFont()
+    local name = CCS.GetFont and CCS.GetFont()
+    local LSM  = LibStub and LibStub("LibSharedMedia-3.0", true)
+    local path = name and LSM and LSM:Fetch("font", name, true)
+    for _, e in ipairs(_fontStrings) do
+        if not e.fs then
+            -- pooled/destroyed; skip
+        elseif path then
+            e.fs:SetFont(path, e.size, e.flags)
+        else
+            -- Same SetFont path as named fonts, so Default renders identically.
+            e.fs:SetFont(e.face, e.size, e.flags)
+        end
+    end
+    -- Dropdown button labels (created in widgets.lua).
+    for _, fs in ipairs(CCS._ddLabels or {}) do
+        if path then
+            fs:SetFont(path, fs._ccsSize or 10, fs._ccsDefaultFlags or "")
+        elseif fs._ccsDefaultFace then
+            fs:SetFont(fs._ccsDefaultFace, fs._ccsSize or 10, fs._ccsDefaultFlags)
+        end
+    end
+    -- Template button labels (Raid, Mythic+, Help, etc.).
+    for _, e in ipairs(_templateBtnFS) do
+        if not e.fs then
+        elseif path then
+            e.fs:SetFont(path, e.size, e.flags)
+        else
+            e.fs:SetFont(e.face, e.size, e.flags)
+        end
+    end
+    -- Boxes that auto-size to their button text must re-measure after a font
+    -- change, or wider glyphs overflow their fixed width.
+    if CCS._sizeModuleBox then CCS._sizeModuleBox() end
+    if CCS._sizeWarnBox   then CCS._sizeWarnBox()   end
+    if CCS._sizeCdBox     then CCS._sizeCdBox()     end
+end
+CCS._applyFont = applyFont
+CCS._makeFontString = makeFontString
+
+-- Register a UIPanelButtonTemplate button's label so applyFont restyles it.
+local function registerButtonFont(btn)
+    local fs = btn:GetFontString()
+    if not fs then return end
+    local face, size, flags = fs:GetFont()
+    _templateBtnFS[#_templateBtnFS + 1] = { fs = fs, face = face, size = size, flags = flags }
+end
+CCS._registerButtonFont = registerButtonFont
+
 local function withCombatGuard(fn)
     if InCombatLockdown() then
         print("|cffffff00CCS:|r Cannot change settings during combat.")
@@ -29,6 +105,9 @@ local function stripButtonBorder(btn)
     if btn.Left   then btn.Left:Hide()   end
     if btn.Middle then btn.Middle:Hide() end
     if btn.Right  then btn.Right:Hide()  end
+    -- Every custom button funnels through here, so register its label for
+    -- font restyling in the same place.
+    registerButtonFont(btn)
 end
 
 -- brighten a widget's border on hover.
@@ -97,7 +176,7 @@ end
 -- chain those instead of replacing them.
 -- don't switch to HookScript: rebindAll re-tooltips pooled headers every
 -- rebuild, so the handlers would stack.
-local function addTooltip(frame, title, body)
+local function addTooltip(frame, title, body, anchorLeft)
     frame:EnableMouse(true)
 
     if not frame._ccsTipHooked then
@@ -108,10 +187,17 @@ local function addTooltip(frame, title, body)
 
     frame._ccsTipTitle = title
     frame._ccsTipBody  = body
+    frame._ccsTipLeft  = anchorLeft
 
     frame:SetScript("OnEnter", function(self)
         if self._ccsPrevEnter then self._ccsPrevEnter(self) end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if self._ccsTipLeft then
+            -- Open to the left, matching the ability tooltip.
+            GameTooltip:SetOwner(self, "ANCHOR_NONE")
+            GameTooltip:SetPoint("TOPRIGHT", self, "TOPLEFT", -10, 0)
+        else
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        end
         GameTooltip:AddLine(self._ccsTipTitle, 1, 1, 1)
         if self._ccsTipBody then GameTooltip:AddLine(self._ccsTipBody, 0.8, 0.8, 0.8, true) end
         GameTooltip:Show()
@@ -440,7 +526,7 @@ local function acquireRow(scrollChild, idx)
         border:SetAllPoints()
         border:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 2 })
         border:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
-        local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        local fs = makeFontString(btn, "OVERLAY", "GameFontNormalSmall")
         fs:SetAllPoints(); fs:SetJustifyH("CENTER"); fs:SetJustifyV("MIDDLE")
         fs:SetText("|cffaaaaaa Test|r")
         local hl = btn:CreateTexture(nil, "HIGHLIGHT")
@@ -472,7 +558,7 @@ local function acquireRow(scrollChild, idx)
     warnCB:SetPoint("RIGHT", warnDD, "LEFT", -4, 0)
     stripCheckBorder(warnCB)
 
-    local warnNoLbl = leftCell:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local warnNoLbl = makeFontString(leftCell, "ARTWORK", "GameFontNormalSmall")
     warnNoLbl:SetText("|cff555555No default|r")
     warnNoLbl:SetPoint("RIGHT", raidTestBtn, "LEFT", -4, 0)
 
@@ -485,40 +571,40 @@ local function acquireRow(scrollChild, idx)
     lblFrame:SetPoint("RIGHT", warnCB,   "LEFT", -6, 0)
     lblFrame:SetHeight(ROW_HEIGHT)
     lblFrame:RegisterForClicks("LeftButtonUp")
-    local lbl = lblFrame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    local lbl = makeFontString(lblFrame, "ARTWORK", "GameFontNormal")
     lbl:SetAllPoints(); lbl:SetJustifyH("LEFT"); lbl:SetJustifyV("MIDDLE")
     local lblHL = lblFrame:CreateTexture(nil, "HIGHLIGHT")
     lblHL:SetAllPoints(); lblHL:SetColorTexture(1, 1, 1, 0.05)
 
     -- Raid right-cell controls
-    local hLbl = rightCell:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local hLbl = makeFontString(rightCell, "ARTWORK", "GameFontNormalSmall")
     hLbl:SetText("|cffaaaaaa HC:|r")
     local hCB = CreateFrame("CheckButton", nil, rightCell, "UICheckButtonTemplate")
     hCB:SetSize(CHECKBOX_SIZE, CHECKBOX_SIZE); stripCheckBorder(hCB)
     local hDD = CCS_CreateDropdown(rightCell, COUNTDOWN_DROPDOWN_W, DROPDOWN_HEIGHT, COUNTDOWN_DROPDOWN_FONT_SIZE)
     hDD._popupWidth = 130
-    local hNoLbl = rightCell:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local hNoLbl = makeFontString(rightCell, "ARTWORK", "GameFontNormalSmall")
     hNoLbl:SetText("|cff555555No default|r")
-    local hValLbl = rightCell:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local hValLbl = makeFontString(rightCell, "ARTWORK", "GameFontNormalSmall")
 
-    local mLbl = rightCell:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local mLbl = makeFontString(rightCell, "ARTWORK", "GameFontNormalSmall")
     mLbl:SetText("|cffaaaaaa M:|r")
     local mCB = CreateFrame("CheckButton", nil, rightCell, "UICheckButtonTemplate")
     mCB:SetSize(CHECKBOX_SIZE, CHECKBOX_SIZE); stripCheckBorder(mCB)
     local mDD = CCS_CreateDropdown(rightCell, COUNTDOWN_DROPDOWN_W, DROPDOWN_HEIGHT, COUNTDOWN_DROPDOWN_FONT_SIZE)
     mDD._popupWidth = 130
-    local mNoLbl = rightCell:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local mNoLbl = makeFontString(rightCell, "ARTWORK", "GameFontNormalSmall")
     mNoLbl:SetText("|cff555555No default|r")
-    local mValLbl = rightCell:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local mValLbl = makeFontString(rightCell, "ARTWORK", "GameFontNormalSmall")
 
     -- M+ right-cell controls
     local cdCB = CreateFrame("CheckButton", nil, rightCell, "UICheckButtonTemplate")
     cdCB:SetSize(CHECKBOX_SIZE, CHECKBOX_SIZE); stripCheckBorder(cdCB)
     local cdDD = CCS_CreateDropdown(rightCell, COUNTDOWN_DROPDOWN_W, DROPDOWN_HEIGHT, COUNTDOWN_DROPDOWN_FONT_SIZE)
     cdDD._popupWidth = 130
-    local cdNoLbl = rightCell:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local cdNoLbl = makeFontString(rightCell, "ARTWORK", "GameFontNormalSmall")
     cdNoLbl:SetText("|cff555555No default|r")
-    local cdValLbl = rightCell:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local cdValLbl = makeFontString(rightCell, "ARTWORK", "GameFontNormalSmall")
 
     -- "Set Default" button: resets this spell's ticks, warn sound and timers.
     -- Only shown when the spell carries a custom warn or countdown override.
@@ -530,7 +616,7 @@ local function acquireRow(scrollChild, idx)
     resetBorder:SetAllPoints()
     resetBorder:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 2 })
     resetBorder:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
-    local resetFs = resetBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local resetFs = makeFontString(resetBtn, "OVERLAY", "GameFontNormalSmall")
     resetFs:SetAllPoints(); resetFs:SetJustifyH("CENTER"); resetFs:SetJustifyV("MIDDLE")
     resetFs:SetText("|cffaaaaaaSet Default|r")
     local resetHl = resetBtn:CreateTexture(nil, "HIGHLIGHT")
@@ -1004,7 +1090,7 @@ end
 local function acquireHeader(scrollChild, idx)
     if not _pool.headers[idx] then
         local frame = CreateFrame("Frame", nil, scrollChild)
-        local lbl = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
+        local lbl = makeFontString(frame, "ARTWORK", "GameFontHighlightLarge")
         lbl:SetPoint("LEFT", frame, "LEFT", 0, 0)
         frame._lbl = lbl
         -- hover highlight, same as the ability rows
@@ -1023,7 +1109,7 @@ local function acquireRaidBg(scrollChild, idx)
         local bg  = CreateFrame("Frame", nil, scrollChild)
         local tex = bg:CreateTexture(nil, "BACKGROUND")
         tex:SetAllPoints(); tex:SetColorTexture(0.078, 0.078, 0.078, 1)
-        local lbl = bg:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        local lbl = makeFontString(bg, "OVERLAY", "GameFontNormalLarge")
         lbl:SetPoint("CENTER"); lbl:SetJustifyH("CENTER")
         bg._lbl = lbl
         _pool.raidBgs[idx] = bg
@@ -1257,10 +1343,10 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
         if bossKey and hasAdvanced then
             addTooltip(hdr, entry.boss or entry.section or "",
                 "Left-click to " .. (showAll and "hide" or "show") ..
-                " non-default abilities.\nRight-click to open the dungeon journal.")
+                " non-default abilities.\nRight-click to open the dungeon journal.", true)
         else
             addTooltip(hdr, entry.boss or entry.section or "",
-                "Right-click to open the dungeon journal.")
+                "Right-click to open the dungeon journal.", true)
         end
 
         hdr:Show(); y = y - SECTION_HEADER_H
@@ -1334,7 +1420,7 @@ local function BuildCCSOptions(panel, isStandalone)
     topBlockBg:SetAllPoints()
     topBlockBg:SetColorTexture(0.078, 0.078, 0.078, 1)
 
-    local title = topBlock:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    local title = makeFontString(topBlock, "ARTWORK", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 16, -12)
     title:SetText(CATEGORY_NAME)
 
@@ -1354,18 +1440,7 @@ local function BuildCCSOptions(panel, isStandalone)
     addTooltip(profilesBtn, "Profiles", "Open the profile manager.")
 
     profilesBtn:SetScript("OnClick", function()
-        local AceConfigDialog = LibStub("AceConfigDialog-3.0")
-        local AceConfig       = LibStub("AceConfig-3.0")
-        local AceDBOptions    = LibStub("AceDBOptions-3.0")
-        if not CCS._profileOptionsRegistered then
-            AceConfig:RegisterOptionsTable("CCSProfiles", AceDBOptions:GetOptionsTable(CCS.GetDB()))
-            CCS._profileOptionsRegistered = true
-        end
-        if AceConfigDialog.OpenFrames["CCSProfiles"] then
-            AceConfigDialog:Close("CCSProfiles")
-        else
-            AceConfigDialog:Open("CCSProfiles")
-        end
+        CCS.ToggleProfiles()
     end)
 
     local helpBtn = CreateFrame("Button", nil, topBlock, "UIPanelButtonTemplate")
@@ -1390,7 +1465,7 @@ local function BuildCCSOptions(panel, isStandalone)
     confirmDialog:SetBackdropBorderColor(0.8, 0.6, 0.1, 1)
     confirmDialog:Hide()
 
-    local confirmText = confirmDialog:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local confirmText = makeFontString(confirmDialog, "OVERLAY", "GameFontNormalSmall")
     confirmText:SetPoint("TOP", confirmDialog, "TOP", 0, -10)
     confirmText:SetText("|cffffff00This will remove your custom settings\nand load the built-in defaults.|r")
     confirmText:SetJustifyH("CENTER")
@@ -1426,7 +1501,7 @@ local function BuildCCSOptions(panel, isStandalone)
     helpDialog:EnableMouse(true)
     helpDialog:Hide()
 
-    local helpTitle = helpDialog:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    local helpTitle = makeFontString(helpDialog, "OVERLAY", "GameFontNormalLarge")
     helpTitle:SetPoint("TOP", helpDialog, "TOP", 0, -12)
     helpTitle:SetText("|cffFFD100Custom Countdown Sounds Help|r")
 
@@ -1444,7 +1519,7 @@ local function BuildCCSOptions(panel, isStandalone)
     helpContent:SetSize(380, 10)
     helpScroll:SetScrollChild(helpContent)
 
-    local helpText = helpContent:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    local helpText = makeFontString(helpContent, "ARTWORK", "GameFontHighlightSmall")
     helpText:SetPoint("TOPLEFT", helpContent, "TOPLEFT", 0, 0)
     helpText:SetWidth(376)
     helpText:SetJustifyH("LEFT")
@@ -1513,7 +1588,7 @@ local function BuildCCSOptions(panel, isStandalone)
 
     local moduleBox = makeGroupBox(topBlock, topBlock, "BOTTOMRIGHT", -6, 6, "BOTTOMRIGHT")
     moduleBox:SetSize(170, 24)  -- initial size, overridden by OnShow
-    local moduleLbl = moduleBox:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local moduleLbl = makeFontString(moduleBox, "ARTWORK", "GameFontNormalSmall")
     moduleLbl:SetText("|cffcccccc Module|r")
     moduleLbl:SetPoint("TOPLEFT", moduleBox, "TOPLEFT", 14, -7)
     local raidBtn = CreateFrame("Button", nil, moduleBox, "UIPanelButtonTemplate")
@@ -1524,15 +1599,20 @@ local function BuildCCSOptions(panel, isStandalone)
     mplusBtn:SetSize(60, 20); mplusBtn:SetPoint("LEFT", raidBtn, "RIGHT", 2, 0)
     mplusBtn:SetText("Mythic+"); stripButtonBorder(mplusBtn)
     addTooltip(mplusBtn, "Mythic+ Module", "Switch to Mythic+ spell data.")
-    -- auto-size module buttons and box
-    moduleBox:SetScript("OnShow", function()
+    -- auto-size module buttons and box; re-runs when the font changes
+    local function sizeModuleBox()
         local lblW   = moduleLbl:GetStringWidth()
         local raidW  = raidBtn:GetFontString()  and raidBtn:GetFontString():GetStringWidth()  + 16 or 50
         local mplusW = mplusBtn:GetFontString() and mplusBtn:GetFontString():GetStringWidth() + 16 or 60
         raidBtn:SetWidth(raidW); mplusBtn:SetWidth(mplusW)
+        -- box is anchored BOTTOMRIGHT, so growing the width extends it leftward
         moduleBox:SetSize(14 + lblW + 8 + raidW + 2 + mplusW + 4, 24)
+    end
+    moduleBox:SetScript("OnShow", function()
+        sizeModuleBox()
         moduleBox:SetScript("OnShow", nil)
     end)
+    CCS._sizeModuleBox = sizeModuleBox
     local function clearSearch()
         searchQuery = ""
         if CCS._searchBox then CCS._searchBox:SetText("") end
@@ -1543,9 +1623,9 @@ local function BuildCCSOptions(panel, isStandalone)
     -- Output channel dropdown (below the title) + scale slider (next to title).
     local settingsBox = CreateFrame("Frame", nil, topBlock)
     settingsBox:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
-    settingsBox:SetSize(360, 24)
+    settingsBox:SetSize(410, 24)
 
-    local chanLbl = settingsBox:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local chanLbl = makeFontString(settingsBox, "ARTWORK", "GameFontNormalSmall")
     chanLbl:SetText("|cffccccccSound output|r")
     chanLbl:SetPoint("LEFT", settingsBox, "LEFT", 0, 0)
 
@@ -1572,11 +1652,11 @@ local function BuildCCSOptions(panel, isStandalone)
 
     local scaleSlider, scaleValue
     if isStandalone then
-        local scaleLbl = topBlock:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        local scaleLbl = makeFontString(topBlock, "ARTWORK", "GameFontNormalSmall")
         scaleLbl:SetText("|cffccccccScale|r")
         scaleLbl:SetPoint("LEFT", title, "RIGHT", 20, 0)
 
-        local minV, maxV, step = 0.5, 2.0, 0.05
+        local minV, maxV, step = 0.75, 2.0, 0.05
         local TW, INSET = 46, 2
 
         local s = CreateFrame("Frame", nil, topBlock, "BackdropTemplate")
@@ -1592,7 +1672,7 @@ local function BuildCCSOptions(panel, isStandalone)
         thumb:SetBackdropColor(0.22, 0.22, 0.22, 1)
         thumb:SetBackdropBorderColor(0.45, 0.45, 0.45, 1)
 
-        local text = thumb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        local text = makeFontString(thumb, "OVERLAY", "GameFontHighlightSmall")
         text:SetPoint("CENTER", thumb, "CENTER", 0, 0)
 
         s._value = CCS.GetScale()
@@ -1654,8 +1734,43 @@ local function BuildCCSOptions(panel, isStandalone)
         addTooltip(s, "Window scale", "Resize the whole window.")
     end
 
+    -- Font picker, to the right of the sound output dropdown.
+    local fontLbl = makeFontString(settingsBox, "ARTWORK", "GameFontNormalSmall")
+    fontLbl:SetText("|cffccccccFont|r")
+    fontLbl:SetPoint("LEFT", chanDD, "RIGHT", 14, 0)
+
+    local fontDD = CCS_CreateDropdown(settingsBox, 180, 20, 11)
+    fontDD._noGreen = true
+    fontDD._wantSearch = true  -- wide popup + search, but no sound-preview button
+    fontDD:SetPoint("LEFT", fontLbl, "RIGHT", 6, 0)
+
+    local function buildFontItems()
+        local items = { { label = "Default", value = "__default__" } }
+        local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+        if LSM then
+            for _, name in ipairs(LSM:List("font")) do
+                items[#items + 1] = {
+                    label = name,
+                    value = name,
+                    font  = LSM:Fetch("font", name, true),  -- preview in its own face
+                }
+            end
+        end
+        return items
+    end
+    fontDD:SetItems(buildFontItems())
+    fontDD:SetValue(CCS.GetFont() or "__default__")
+    fontDD:SetOnSelect(function(v)
+        withCombatGuard(function()
+            CCS.SetFont(v ~= "__default__" and v or nil)
+            if CCS._applyFont then CCS._applyFont() end
+        end)
+    end)
+    addTooltip(fontDD, "Font", "Changes the font used throughout the addon.")
+
     CCS._syncSettingsBox = function()
         chanDD:SetValue(CCS.GetChannel())
+        fontDD:SetValue(CCS.GetFont() or "__default__")
         if scaleSlider then
             scaleSlider._value = CCS.GetScale()
             if scaleSlider.refresh then scaleSlider:refresh() end
@@ -1689,7 +1804,7 @@ local function BuildCCSOptions(panel, isStandalone)
     local durationOverrideCB = CreateFrame("CheckButton", nil, headerBar, "UICheckButtonTemplate")
     durationOverrideCB:SetSize(16, 16)
     stripCheckBorder(durationOverrideCB)
-    local durationOverrideLbl = headerBar:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local durationOverrideLbl = makeFontString(headerBar, "ARTWORK", "GameFontNormalSmall")
     durationOverrideLbl:SetText("|cffaaaaaa Manual Mode (Advanced)|r")
     durationOverrideLbl:SetPoint("LEFT", durationOverrideCB, "RIGHT", 2, 0)
     addTooltip(durationOverrideCB, "Manual Mode (Advanced)",
@@ -1713,7 +1828,7 @@ local function BuildCCSOptions(panel, isStandalone)
     local warnBox = makeGroupBox(headerBar, headerBar, "BOTTOMLEFT", 0, 0, "BOTTOMLEFT")
     warnBox:SetBackdropBorderColor(0, 0, 0, 0)
     warnBox:SetSize(140, BULK_BOX_H)
-    local warnBoxLbl = warnBox:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local warnBoxLbl = makeFontString(warnBox, "ARTWORK", "GameFontNormalSmall")
     warnBoxLbl:SetText("|cffcccccc All Warnings|r")
     warnBoxLbl:SetPoint("TOP", warnBox, "TOP", 0, -4)
     warnBoxLbl:SetJustifyH("CENTER")
@@ -1738,20 +1853,24 @@ local function BuildCCSOptions(panel, isStandalone)
     disableWarnULine:SetPoint("BOTTOMLEFT",  disableWarnBtn, "BOTTOMLEFT",  4, 1)
     disableWarnULine:SetPoint("BOTTOMRIGHT", disableWarnBtn, "BOTTOMRIGHT", -4, 1)
     disableWarnULine:Hide()
-    warnBox:SetScript("OnShow", function()
+    local function sizeWarnBox()
         local lblW = warnBoxLbl:GetStringWidth()
         local enW  = enableWarnBtn:GetFontString() and enableWarnBtn:GetFontString():GetStringWidth() + 16 or 68
         local disW = disableWarnBtn:GetFontString() and disableWarnBtn:GetFontString():GetStringWidth() + 16 or 68
         enableWarnBtn:SetWidth(enW); disableWarnBtn:SetWidth(disW)
         local w = math.max(enW + disW + 8, lblW + 16)
         warnBox:SetSize(w, BULK_BOX_H)
+    end
+    warnBox:SetScript("OnShow", function()
+        sizeWarnBox()
         warnBox:SetScript("OnShow", nil)
     end)
+    CCS._sizeWarnBox = sizeWarnBox
 
     local cdBox = makeGroupBox(headerBar, headerBar, "BOTTOMRIGHT", 0, 0, "BOTTOMRIGHT")
     cdBox:SetBackdropBorderColor(0, 0, 0, 0)
     cdBox:SetSize(140, BULK_BOX_H)
-    local cdBoxLbl = cdBox:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local cdBoxLbl = makeFontString(cdBox, "ARTWORK", "GameFontNormalSmall")
     cdBoxLbl:SetText("|cffcccccc All Countdowns|r")
     cdBoxLbl:SetPoint("TOP", cdBox, "TOP", 0, -4)
     cdBoxLbl:SetJustifyH("CENTER")
@@ -1776,15 +1895,19 @@ local function BuildCCSOptions(panel, isStandalone)
     disableCDULine:SetPoint("BOTTOMLEFT",  disableCDBtn, "BOTTOMLEFT",  4, 1)
     disableCDULine:SetPoint("BOTTOMRIGHT", disableCDBtn, "BOTTOMRIGHT", -4, 1)
     disableCDULine:Hide()
-    cdBox:SetScript("OnShow", function()
+    local function sizeCdBox()
         local lblW = cdBoxLbl:GetStringWidth()
         local enW  = enableCDBtn:GetFontString() and enableCDBtn:GetFontString():GetStringWidth() + 16 or 68
         local disW = disableCDBtn:GetFontString() and disableCDBtn:GetFontString():GetStringWidth() + 16 or 68
         enableCDBtn:SetWidth(enW); disableCDBtn:SetWidth(disW)
         local w = math.max(enW + disW + 8, lblW + 16)
         cdBox:SetSize(w, BULK_BOX_H)
+    end
+    cdBox:SetScript("OnShow", function()
+        sizeCdBox()
         cdBox:SetScript("OnShow", nil)
     end)
+    CCS._sizeCdBox = sizeCdBox
 
     -- Dungeon tab strip (M+ only)
     local TAB_H   = 28
@@ -1979,8 +2102,32 @@ local function BuildCCSOptions(panel, isStandalone)
 
     if scroll.ScrollBar then
         scroll.ScrollBar:ClearAllPoints()
-        scroll.ScrollBar:SetPoint("TOPRIGHT",    scroll, "TOPRIGHT",    0, -16)
-        scroll.ScrollBar:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", 0,  16)
+        scroll.ScrollBar:SetPoint("TOPRIGHT",    scroll, "TOPRIGHT",    0, -2)
+        scroll.ScrollBar:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", 0,  2)
+
+        -- Modernize the default UIPanel scrollbar: drop the arrow buttons and
+        -- beveled art, leaving a thin flat track with a flat thumb.
+        local sb = scroll.ScrollBar
+        sb:SetWidth(8)
+
+        local up   = sb.ScrollUpButton   or _G[(sb:GetName() or "") .. "ScrollUpButton"]
+        local down = sb.ScrollDownButton or _G[(sb:GetName() or "") .. "ScrollDownButton"]
+        if up   then up:Hide();   up:SetHeight(0.01)   end
+        if down then down:Hide(); down:SetHeight(0.01) end
+
+        -- Hide the stock track/thumb textures.
+        if sb.SetThumbTexture then sb:SetThumbTexture("Interface\\Buttons\\WHITE8X8") end
+        local thumb = sb.ThumbTexture or (sb.GetThumbTexture and sb:GetThumbTexture())
+        if thumb then
+            thumb:SetColorTexture(0.5, 0.5, 0.5, 0.7)
+            thumb:SetWidth(8)
+        end
+
+        -- Flat track behind the thumb.
+        local track = sb:CreateTexture(nil, "BACKGROUND")
+        track:SetColorTexture(1, 1, 1, 0.04)
+        track:SetPoint("TOPLEFT",     sb, "TOPLEFT",     0, 0)
+        track:SetPoint("BOTTOMRIGHT", sb, "BOTTOMRIGHT", 0, 0)
     end
 
     local function updateScrollBar()
@@ -2063,6 +2210,7 @@ local function BuildCCSOptions(panel, isStandalone)
             if CCS._refreshBulkUnderlines then CCS._refreshBulkUnderlines() end
             if CCS._syncSettingsBox then CCS._syncSettingsBox() end
             if CCS._applyWindowScale then CCS._applyWindowScale(CCS.GetScale()) end
+            if CCS._applyFont then CCS._applyFont() end
         end
     end
 
@@ -2151,6 +2299,7 @@ local function BuildCCSOptions(panel, isStandalone)
 
             -- Window is up; fill the rest of the pool in the background.
             StartPrewarm(scrollChild)
+            applyFont()  -- match any saved font choice on first open
         else
             -- Already built; re-apply module then resync.
             if CCS.ApplyModule then CCS.ApplyModule() end
@@ -2223,11 +2372,11 @@ local function CreateStubPanel()
     local panel = CreateFrame("Frame", nil, UIParent)
     panel.name  = CATEGORY_NAME
 
-    local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    local title = makeFontString(panel, "ARTWORK", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -16)
     title:SetText(CATEGORY_NAME)
 
-    local desc = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    local desc = makeFontString(panel, "ARTWORK", "GameFontHighlight")
     desc:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
     desc:SetWidth(500); desc:SetJustifyH("LEFT"); desc:SetWordWrap(true)
     desc:SetText(
@@ -2237,7 +2386,7 @@ local function CreateStubPanel()
         "the ability fires). Sounds can be customised per-ability and saved into profiles."
     )
 
-    local slashTitle = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    local slashTitle = makeFontString(panel, "ARTWORK", "GameFontNormal")
     slashTitle:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -20)
     slashTitle:SetText("Slash Commands")
 
@@ -2248,7 +2397,7 @@ local function CreateStubPanel()
         { cmd="/ccs sounds",   desc="Debug registered sounds."         },
         { cmd="/ccs minimap",  desc="Toggle the minimap button."       },
     }) do
-        local line = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        local line = makeFontString(panel, "ARTWORK", "GameFontHighlight")
         line:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, prev == slashTitle and -8 or -4)
         line:SetJustifyH("LEFT")
         line:SetText("|cffffffff" .. entry.cmd .. "|r  —  " .. entry.desc)
@@ -2289,9 +2438,16 @@ local function CreateStandaloneWindow()
     win:Hide()
     tinsert(UISpecialFrames, "CCSStandaloneWindow")
 
-    local closeBtn = CreateFrame("Button", nil, win, "UIPanelCloseButton")
+    local closeBtn = CreateFrame("Button", nil, win)
+    closeBtn:SetSize(22, 22)
     closeBtn:SetPoint("TOPRIGHT", win, "TOPRIGHT", -4, -4)
     closeBtn:SetScript("OnClick", function() win:Hide() end)
+    -- Plain X, no background circle.
+    local cbX = closeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    cbX:SetPoint("CENTER")
+    cbX:SetText("|cffb0b0b0\195\151|r")  -- multiplication sign, reads as a clean X
+    closeBtn:SetScript("OnEnter", function() cbX:SetText("|cffffffff\195\151|r") end)
+    closeBtn:SetScript("OnLeave", function() cbX:SetText("|cffb0b0b0\195\151|r") end)
 
     -- Resize handle
     local handle = CreateFrame("Frame", nil, win)
@@ -2304,7 +2460,7 @@ local function CreateStandaloneWindow()
     handleTex:SetAllPoints()
     handleTex:SetColorTexture(0.5, 0.5, 0.5, 0.3)
 
-    local grip = handle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local grip = makeFontString(handle, "OVERLAY", "GameFontNormalSmall")
     grip:SetPoint("CENTER")
     grip:SetText("|cff666666· · · · ·|r")
 

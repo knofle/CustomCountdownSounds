@@ -107,6 +107,7 @@ local function CCS_GetOrCreatePopup()
         local owner  = popup._owner
         local offset = popup._offset or 0
         local wide   = owner and owner._widePreview
+        local search = owner and (owner._widePreview or owner._wantSearch)
         for i = 1, MAX_VISIBLE do
             local row  = popup._buttons[i]
             local item = items[offset + i]
@@ -121,6 +122,23 @@ local function CCS_GetOrCreatePopup()
                     row._prev:Hide()
                 end
                 row._text:SetText(item.label)
+                -- Font picker items preview in their own face. Every other row
+                -- follows the user's chosen UI font, falling back to the row's
+                -- captured default when no font is set.
+                if item.font then
+                    row._text:SetFont(item.font, 13, "")
+                else
+                    local chosen = CCS.GetFont and CCS.GetFont()
+                    local LSM    = LibStub and LibStub("LibSharedMedia-3.0", true)
+                    local path   = chosen and LSM and LSM:Fetch("font", chosen, true)
+                    if path then
+                        row._text:SetFont(path, row._text._ccsSize or 12, row._text._ccsFlags or "")
+                    else
+                        row._text:SetFont(row._text._ccsFace,
+                                          row._text._ccsSize or 12,
+                                          row._text._ccsFlags or "")
+                    end
+                end
                 row._check:SetText(item.value == (owner and owner._value) and "|cff00ff00*|r" or "")
                 row:ClearAllPoints()
                 row:SetPoint("TOPLEFT",  clipper, "TOPLEFT",  0, -(i-1)*ROW_H)
@@ -203,6 +221,14 @@ local function CCS_GetOrCreatePopup()
         row._check:SetWidth(14)
         row._check:SetJustifyH("LEFT")
         row._text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        -- Capture the concrete face/size/flags now, so a pooled row that
+        -- previewed a custom font can always restore exactly, without relying
+        -- on SetFontObject resolving a name string.
+        row._text._ccsFace, row._text._ccsSize, row._text._ccsFlags = row._text:GetFont()
+        -- Fallbacks: GetFont can return nils depending on when it's first read.
+        row._text._ccsFace  = row._text._ccsFace or "Fonts\\FRIZQT__.TTF"
+        row._text._ccsSize  = row._text._ccsSize or 12
+        row._text._ccsFlags = row._text._ccsFlags or ""
         row._text:SetPoint("LEFT", row._check, "RIGHT", 2, 0)
         row._text:SetJustifyH("LEFT")
         local hl = row:CreateTexture(nil, "HIGHLIGHT")
@@ -258,7 +284,14 @@ local function CCS_CreateDropdown(parent, width, height, fontSize)
     local fontFace = select(1, GameFontHighlightSmall:GetFont())
     local fontFlags = select(3, GameFontHighlightSmall:GetFont())
     btn._label = btn:CreateFontString(nil, "OVERLAY")
-    btn._label:SetFont(fontFace, fontSize or 10, fontFlags)
+    btn._labelSize = fontSize or 10   -- remembered so a custom font keeps this size
+    btn._label:SetFont(fontFace, btn._labelSize, fontFlags)
+    btn._label._ccsSize = btn._labelSize
+    btn._label._ccsDefaultFace = fontFace
+    btn._label._ccsDefaultFlags = fontFlags
+    -- Register so CCS.RestyleDropdowns can re-font this label later.
+    CCS._ddLabels = CCS._ddLabels or {}
+    CCS._ddLabels[#CCS._ddLabels + 1] = btn._label
     btn._label:SetPoint("LEFT",  btn, "LEFT",  8,   0)
     btn._label:SetPoint("RIGHT", btn, "RIGHT", -18, 0)
     btn._label:SetJustifyH("LEFT")
@@ -292,7 +325,7 @@ local function CCS_CreateDropdown(parent, width, height, fontSize)
         local PAD      = 6
         local SCROLL_W = 14
         local SEARCH_H = 22
-        local hasSearch = self._widePreview
+        local hasSearch = self._widePreview or self._wantSearch
 
         popup._owner    = self
         popup._allItems = self._items
