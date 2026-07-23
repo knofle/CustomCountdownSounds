@@ -39,8 +39,8 @@ CCS_Spells_Mplus_KingsRest = {
         abilities = {
             { key = "kr_whirling_axe",              label = "Whirling Axe",                     privateID = 266191,                 soundM = nil,                            advanced = true,   desc = "Spinning knockback around Kula, then lingering axes. Move out of melee to dodge them." },
             { key = "kr_barrel_through",            label = "Barrel Through",                   privateID = 267494,                 soundM = {"file:targeted","file:6s"},                       desc = "Aka'ali charges you for huge damage. Stack players in the path to split it." },
-            { key = "kr_severing_axe",              label = "Severing Axe",                     privateID = 266231,                 soundM = "file:dot",                     advanced = true,   desc = "Heavy bleed on a random player. Just heal through it." },
-            { key = "kr_bloodthirsty_axe",          label = "Bloodthirsty Axe",                 privateID = 1301851,                soundM = "file:dot",                     advanced = true,   desc = "Heavy bleed on two random players. Just heal through it." },
+            { key = "kr_severing_axe",              label = "Severing Axe",                     privateID = 266231,                 soundM = "file:dot",                     advanced = true,   desc = "Heavy bleed on a random player." },
+            { key = "kr_bloodthirsty_axe",          label = "Bloodthirsty Axe",                 privateID = 1301851,                soundM = "file:dot",                     advanced = true,   desc = "Heavy bleed on two random players." },
             { key = "kr_shattered_defenses",        label = "Shattered Defenses",               privateID = 266238,                 soundM = "debuff",                       advanced = true,   desc = "You take 200% more physical damage. Tanks, stay away from the boss while it's up." },
         },
     },
@@ -53,9 +53,9 @@ CCS_Spells_Mplus_KingsRest = {
         journalInstanceID = 1041,
         journalEncounterID = 2172,          
         abilities = {
-            { key = "kr_gilded_destruction",        label = "Gilded Destruction",               privateID = 1303267,                soundM = nil,                            advanced = true, desc = "Raid-wide fire hit plus a 15s dot. Heal through it." },
+            { key = "kr_gilded_destruction",        label = "Gilded Destruction",               privateID = 1303267,                soundM = nil,                            advanced = true, desc = "Raid-wide fire hit plus a 15s dot." },
             { key = "kr_savage_maul",               label = "Savage Maul",                      privateID = 1303490,                soundM = nil,                            advanced = true, desc = "T'zala charges and mauls you: bleed plus you take more physical damage." },
-            { key = "kr_hunting_leap",              label = "Hunting Leap",                     privateID = 1303039,                soundM = nil,                            advanced = true, desc = "Reban jumps on you for a bleed. Just heal through it." },
+            { key = "kr_hunting_leap",              label = "Hunting Leap",                     privateID = 1303039,                soundM = nil,                            advanced = true, desc = "Reban jumps on you for a bleed." },
             { key = "kr_impaling_spear",            label = "Impaling Spear",                   privateID = 1302945,                soundM = nil,                            advanced = true, desc = "Spears from the ceiling. Don't stand under the impacts." },
             --{ key = "kr_liquid_gold",               label = "Liquid Gold",                      privateID = 1303399,                soundM = nil,                            advanced = true, desc = "Fire drips leaving pools. Don't stand in them." }, -- REMOVED: Liquid Gold on T'zala removed
         },

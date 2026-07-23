@@ -9,7 +9,7 @@ local entries = {
         raid    = "The Venomous Abyss",
         boss    = "Nek'zali the Soulcoiler",
         bossKey = "nekzali_the_soulcoiler",
-        section = "|cffae3df5Nek'zali the Soulcoiler|r",
+        section = "|cff7fbf3fNek'zali the Soulcoiler|r",
         journalInstanceID = 1320,
         journalEncounterID = 2888,
         abilities = {
@@ -32,7 +32,7 @@ local entries = {
         raid    = "The Venomous Abyss",
         boss    = "Entombed Sentinels",
         bossKey = "entombed_sentinels",
-        section = "|cffae3df5Entombed Sentinels|r",
+        section = "|cff7fbf3fEntombed Sentinels|r",
         journalInstanceID = 1320,
         journalEncounterID = 2874,
         abilities = {
@@ -54,7 +54,7 @@ local entries = {
         raid    = "The Venomous Abyss",
         boss    = "The Lost Explorers",
         bossKey = "the_lost_explorers",
-        section = "|cffae3df5The Lost Explorers|r",
+        section = "|cff7fbf3fThe Lost Explorers|r",
         journalInstanceID = 1320,
         journalEncounterID = 2894,        
         abilities = {
@@ -84,7 +84,7 @@ local entries = {
         raid    = "The Venomous Abyss",
         boss    = "Vashnik the Malignant",
         bossKey = "vashnik_the_malignant",
-        section = "|cffae3df5Vashnik the Malignant|r",
+        section = "|cff7fbf3fVashnik the Malignant|r",
         journalInstanceID = 1320,
         journalEncounterID = 2882,        
         abilities = {
@@ -108,7 +108,7 @@ local entries = {
         raid    = "The Venomous Abyss",
         boss    = "Sszorak",
         bossKey = "sszorak",
-        section = "|cffae3df5Sszorak|r",
+        section = "|cff7fbf3fSszorak|r",
         journalInstanceID = 1320,
         journalEncounterID = 2871,        
         abilities = {
@@ -132,7 +132,7 @@ local entries = {
         raid    = "The Venomous Abyss",
         boss    = "The Twin Fangs",
         bossKey = "the_twin_fangs",
-        section = "|cffae3df5The Twin Fangs|r",
+        section = "|cff7fbf3fThe Twin Fangs|r",
         journalInstanceID = 1320,
         journalEncounterID = 2887,        
         abilities = {
@@ -153,7 +153,7 @@ local entries = {
         raid    = "The Venomous Abyss",
         boss    = "The Coiled Altar",
         bossKey = "the_bargained_crown",
-        section = "|cffae3df5The Coiled Altar|r",
+        section = "|cff7fbf3fThe Coiled Altar|r",
         journalInstanceID = 1320,
         journalEncounterID = 2883,        
         abilities = {
@@ -163,7 +163,7 @@ local entries = {
             { key = "unnerving_fixation",           label = "Unnerving Fixation",           privateID = 1285911,                soundH = "fixate",                          soundM = "fixate",                                          desc = "A Manifestation is stalking you. Stare at it to hold it still, it only moves when you look away." },
             { key = "shadowfang",                   label = "Shadowfang",                   privateID = 1286326,                soundH = {"spread","file:5s"},              soundM = {"spread","file:5s"},                              }, -- Axe Marks, 15 yard explode after 5s
             { key = "wail_of_terror",               label = "Wail of Terror",               privateID = 1286399,                soundH = nil,                               soundM = nil,                            advanced = true    }, -- Fear for 5s
-            { key = "gloombomb",                    label = "Gloombomb",                    privateID = 1286901,                soundH = {"spread","file:5s"},              soundM = {"spread","file:5s"},           advanced = true    }, -- Bomb marks, 15 yard damage after 5s. Also Gravebound.
+            { key = "gloombomb",                    label = "Gloombomb",                    privateID = 1286901,                soundH = {"spread","file:5s"},              soundM = {"spread","file:5s"},                              }, -- Bomb marks, 15 yard damage after 5s. Also Gravebound.
             { key = "defilement_of_the_crucible",   label = "Defilement of the Crucible",   privateID = 1298594,                soundH = nil,                               soundM = nil,                            advanced = true    }, -- Heal Absorb, auto attack to apply toxin
             { key = "blighted_toxin",               label = "Blighted Toxin",               privateID = 1287227,                soundH = nil,                               soundM = nil,                            advanced = true,   desc = "Statue venom, ticks on anyone within 5 yards of you for 15s. Don't park it on the group." },
             { key = "spirit_erasure",               label = "Spirit Erasure",               privateID = 1300665,                soundH = {"debuff","file:4s"},              soundM = {"debuff","file:4s"},           advanced = true    }, -- Soak, increasing on stacks, 4 sec dur
@@ -186,7 +186,7 @@ local entries = {
         raid    = "The Venomous Abyss",
         boss    = "Ula'tek",
         bossKey = "ulatek",
-        section = "|cffae3df5Ula'tek|r",
+        section = "|cff7fbf3fUla'tek|r",
         journalInstanceID = 1320,
         journalEncounterID = 2895,
         abilities = {
@@ -226,7 +226,7 @@ local entries = {
         --raid    = "The Venomous Abyss",
         --boss    = "Uncategorized",
         --bossKey = "uncategorized",
-        --section = "|cffae3df5Uncategorized|r",
+        --section = "|cff7fbf3fUncategorized|r",
         --abilities = {
             --{ key = "gnashing_extraction",          label = "Gnashing Extraction",          privateID = 1287551,                soundH = nil,                               soundM = nil,                            advanced = true    }, -- Pulling a fang 15 yards
             --{ key = "petrified",                    label = "Petrified",                    privateID = 1288891,                soundH = nil,                               soundM = nil,                            advanced = true    }, -- Viper Venom turn to stone, heal fully

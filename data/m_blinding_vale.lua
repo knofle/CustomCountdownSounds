@@ -9,9 +9,9 @@ CCS_Spells_Mplus_BlindingVale = {
         journalInstanceID = 1309,
         journalEncounterID = 2769,        
         abilities = {
-            { key = "bv_thornblade",                label = "Thornblade (Short)",               privateID = 1261276,                soundM = "file:bleed",                            advanced = true, desc = "Random-target bleed. Just heal through it." },
-            { key = "bv_thornblade_2",              label = "Thornblade (Long)",                privateID = 1235865,                soundM = "file:bleed",                            advanced = true, desc = "Random-target bleed. Just heal through it." },
-            { key = "bv_bedrock_surge",             label = "Bedrock Surge",                    privateID = 1276586,                soundM = "file:dot",                            advanced = true, desc = "Raid-wide ticking damage after Bedrock Slam. Heal through it." },
+            { key = "bv_thornblade",                label = "Thornblade (Short)",               privateID = 1261276,                soundM = "file:bleed",                            advanced = true, desc = "Random-target bleed." },
+            { key = "bv_thornblade_2",              label = "Thornblade (Long)",                privateID = 1235865,                soundM = "file:bleed",                            advanced = true, desc = "Random-target bleed." },
+            { key = "bv_bedrock_surge",             label = "Bedrock Surge",                    privateID = 1276586,                soundM = "file:dot",                            advanced = true, desc = "Raid-wide ticking damage after Bedrock Slam." },
             { key = "bv_lightblossom_beam",         label = "Lightblossom Beam",                privateID = 1235574,                soundM = nil,                            advanced = true, desc = "Beam that grows a Lightblossom. Stand in it to block the growth." },
             { key = "bv_fertile_loam",              label = "Fertile Loam",                     privateID = 1234802,                soundM = nil,                            advanced = true, desc = "Slows you and ticks damage. Don't stand in it." },
             { key = "bv_light_scorched_earth",      label = "Light-Scorched Earth",             privateID = 1235828,                soundM = nil,                            advanced = true, desc = "Burning ground left behind. Don't stand in it." },
@@ -78,7 +78,7 @@ CCS_Spells_Mplus_BlindingVale = {
             { key = "bv_grievous_gash",             label = "Grievous Gash",                    privateID = 1242135,                soundM = nil,                            advanced = true    },
             { key = "bv_ruptured_earth",            label = "Ruptured Earth",                   privateID = 1237858,                soundM = nil,                            advanced = true    },
             { key = "bv_toxic_spew",                label = "Toxic Spew",                       privateID = 1250937,                soundM = nil,                            advanced = true    },
-            { key = "bv_thornblade_trash",          label = "Thornblade",                       privateID = 1238076,                soundM = nil,                            advanced = true, desc = "Random-target bleed. Just heal through it." },            
+            { key = "bv_thornblade_trash",          label = "Thornblade",                       privateID = 1238076,                soundM = nil,                            advanced = true, desc = "Random-target bleed." },            
         },
     },
 }

@@ -10,8 +10,8 @@ CCS_Spells_Mplus_DenOfNalorakk = {
         journalEncounterID = 2776,        
         abilities = {
             { key = "dn_toxic_spores",              label = "Toxic Spores",                     privateID = 1234846,                soundM = "dot",                          advanced = true, desc = "Stacking poison from touching a mushroom. Soak the mushrooms so they don't burst on everyone. Cleansable." },
-            { key = "dn_hearty_bellow",             label = "Hearty Bellow",                    privateID = 1235125,                soundM = "dot",                          advanced = true, desc = "Raid-wide hit plus a 10s dot with knockback. Heal through it." },
-            { key = "dn_ravenous_bellow",           label = "Ravenous Bellow",                  privateID = 1234681,                soundM = "dot",                          advanced = true, desc = "Raid-wide hit plus a 10s dot. Heal through it." },
+            { key = "dn_hearty_bellow",             label = "Hearty Bellow",                    privateID = 1235125,                soundM = "dot",                          advanced = true, desc = "Raid-wide hit plus a 10s dot with knockback." },
+            { key = "dn_ravenous_bellow",           label = "Ravenous Bellow",                  privateID = 1234681,                soundM = "dot",                          advanced = true, desc = "Raid-wide hit plus a 10s dot." },
             { key = "dn_bonespiked",                label = "Bonespiked",                       privateID = 1235405,                soundM = nil,                            advanced = true, desc = "Standing in bone spikes. Slows you and ticks hard. Get off them." },
         },
     },
