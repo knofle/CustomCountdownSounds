@@ -122,22 +122,12 @@ local function CCS_GetOrCreatePopup()
                     row._prev:Hide()
                 end
                 row._text:SetText(item.label)
-                -- Font picker items preview in their own face. Every other row
-                -- follows the user's chosen UI font, falling back to the row's
-                -- captured default when no font is set.
-                if item.font then
-                    row._text:SetFont(item.font, 13, "")
-                else
-                    local chosen = CCS.GetFont and CCS.GetFont()
-                    local LSM    = LibStub and LibStub("LibSharedMedia-3.0", true)
-                    local path   = chosen and LSM and LSM:Fetch("font", chosen, true)
-                    if path then
-                        row._text:SetFont(path, row._text._ccsSize or 12, row._text._ccsFlags or "")
-                    else
-                        row._text:SetFont(row._text._ccsFace,
-                                          row._text._ccsSize or 12,
-                                          row._text._ccsFlags or "")
-                    end
+                -- Pooled rows keep whatever face they were last given, so set
+                -- it every time rather than only when it changes.
+                local size  = row._text._ccsSize or 12
+                local flags = row._text._ccsFlags or ""
+                if not row._text:SetFont(CCS.FONT_REGULAR, size, flags) then
+                    row._text:SetFont(row._text._ccsFace, size, flags)
                 end
                 row._check:SetText(item.value == (owner and owner._value) and "|cff00ff00*|r" or "")
                 row:ClearAllPoints()
@@ -225,9 +215,9 @@ local function CCS_GetOrCreatePopup()
         -- previewed a custom font can always restore exactly, without relying
         -- on SetFontObject resolving a name string.
         row._text._ccsFace, row._text._ccsSize, row._text._ccsFlags = row._text:GetFont()
-        -- Fallbacks: GetFont can return nils depending on when it's first read.
-        row._text._ccsFace  = row._text._ccsFace or "Fonts\\FRIZQT__.TTF"
-        row._text._ccsSize  = row._text._ccsSize or 12
+        -- Fallbacks in case GetFont is read before the font object resolves.
+        row._text._ccsFace  = row._text._ccsFace  or "Fonts\\FRIZQT__.TTF"
+        row._text._ccsSize  = row._text._ccsSize  or 12
         row._text._ccsFlags = row._text._ccsFlags or ""
         row._text:SetPoint("LEFT", row._check, "RIGHT", 2, 0)
         row._text:SetJustifyH("LEFT")
@@ -281,8 +271,7 @@ local function CCS_CreateDropdown(parent, width, height, fontSize)
     btn:SetBackdropColor(0.15, 0.15, 0.15, 1)
     btn:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
 
-    local fontFace = select(1, GameFontHighlightSmall:GetFont())
-    local fontFlags = select(3, GameFontHighlightSmall:GetFont())
+    local fontFace, _, fontFlags = GameFontHighlightSmall:GetFont()
     btn._label = btn:CreateFontString(nil, "OVERLAY")
     btn._labelSize = fontSize or 10   -- remembered so a custom font keeps this size
     btn._label:SetFont(fontFace, btn._labelSize, fontFlags)
@@ -297,11 +286,11 @@ local function CCS_CreateDropdown(parent, width, height, fontSize)
     btn._label:SetJustifyH("LEFT")
     btn._label:SetText("--")
 
-    local arrow = btn:CreateFontString(nil, "OVERLAY")
-    arrow:SetFont(fontFace, fontSize or 10, fontFlags)
+    local arrow = btn:CreateTexture(nil, "OVERLAY")
+    arrow:SetTexture("Interface\\AddOns\\CustomCountdownSounds\\media\\down_arrow")
+    arrow:SetSize(7, 10)
     arrow:SetPoint("RIGHT", btn, "RIGHT", -6, 0)
-    arrow:SetText("v")
-    arrow:SetTextColor(0.8, 0.8, 0.8)
+    arrow:SetVertexColor(0.8, 0.8, 0.8, 1)
     btn._arrow = arrow
 
     btn._items    = {}
@@ -385,13 +374,13 @@ local function CCS_CreateDropdown(parent, width, height, fontSize)
         self._enabled = enabled and true or false
         if self._enabled then
             self._label:SetTextColor(1,   1,   1)
-            self._arrow:SetTextColor(0.8, 0.8, 0.8)
+            self._arrow:SetVertexColor(0.8, 0.8, 0.8, 1)
             local isOverride = (not self._noGreen) and self._value and self._value ~= "__default__"
             self:SetBackdropColor(isOverride and 0.05 or 0.15, isOverride and 0.28 or 0.15, isOverride and 0.05 or 0.15, 1)
             self:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
         else
             self._label:SetTextColor(0.5, 0.5, 0.5)
-            self._arrow:SetTextColor(0.4, 0.4, 0.4)
+            self._arrow:SetVertexColor(0.4, 0.4, 0.4, 1)
             self:SetBackdropColor(0.1, 0.1, 0.1, 1)
             self:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
         end

@@ -11,59 +11,84 @@ local searchQuery = ""
 -- Font registry. Every label the addon creates goes through makeFontString,
 -- which remembers it and its default font object. When the user picks a font,
 -- applyFont() re-fonts them all in one pass, keeping each one's own size.
-local _fontStrings = {}   -- { fs = <fontstring>, obj = "GameFont...", size = <n> }
+local _fontStrings = {}   -- { fs = <fontstring>, bold = <bool>, size = <n> }
+
+-- The addon ships its own font, so there is nothing to resolve or wait for.
+-- Bold is used for the large headings (raid names, boss names, window titles);
+-- everything else uses the regular weight.
+local FONT_REGULAR = CCS.FONT_REGULAR
+local FONT_BOLD    = CCS.FONT_BOLD
+
+-- Every heading in the UI is created from a *Large font object, so the object
+-- name is enough to pick the weight without touching each call site.
+local function wantsBold(fontObject)
+    return type(fontObject) == "string" and fontObject:find("Large") ~= nil
+end
+
+-- Guard against a nil face or a size of 0 coming back from GetFont. Note that
+-- "size or 12" does NOT catch 0, since 0 is truthy in Lua, and a zero size
+-- renders nothing.
+local DEFAULT_FACE = "Fonts\\FRIZQT__.TTF"
+local function okSize(n)
+    if type(n) == "number" and n > 0 then return n end
+    return 12
+end
+
+-- A custom font can be registered (so metrics and GetStringWidth are correct)
+-- while its glyphs aren't loaded yet. The string then measures fine and draws
+-- nothing, which looks exactly like missing text. Re-issuing SetText forces a
+-- redraw once the glyphs are available; clearing first guarantees it isn't
+-- optimised away as a no-op.
+local function refreshText(fs)
+    local t = fs:GetText()
+    if t and t ~= "" then
+        fs:SetText("")
+        fs:SetText(t)
+    end
+end
+
+local function setFontSafe(fs, path, size, flags, fbFace, fbSize, fbFlags)
+    if path and fs:SetFont(path, okSize(size), flags or "") then return end
+    fs:SetFont(fbFace or DEFAULT_FACE, okSize(fbSize or size), fbFlags or flags or "")
+end
 
 local function makeFontString(parent, layer, fontObject)
     local fs = parent:CreateFontString(nil, layer, fontObject)
-    -- Capture the game-default face/size/flags. Restoring "Default" later uses
-    -- these via SetFont, the same call named fonts use, so the two paths render
-    -- identically (SetFontObject vs SetFont can differ by a fractional size,
-    -- which shifts text-width-driven layout).
+    -- Keep the template's size and flags; only the face changes. The captured
+    -- face is the fallback if our own font ever fails to load.
     local face, size, flags = fs:GetFont()
-    local entry = { fs = fs, face = face, size = size or 12, flags = flags or "" }
+    local entry = {
+        fs = fs, face = face or DEFAULT_FACE, size = okSize(size),
+        flags = flags or "", bold = wantsBold(fontObject),
+    }
     _fontStrings[#_fontStrings + 1] = entry
-    -- Apply the current font right away, so rows pooled after the initial
-    -- build (during prewarm) still match without a full re-font pass.
-    local name = CCS.GetFont and CCS.GetFont()
-    local LSM  = LibStub and LibStub("LibSharedMedia-3.0", true)
-    local path = name and LSM and LSM:Fetch("font", name, true)
-    if path then
-        fs:SetFont(path, entry.size, entry.flags)
-    end
+    -- Apply straight away, so rows pooled later (during prewarm) match too.
+    setFontSafe(fs, entry.bold and FONT_BOLD or FONT_REGULAR,
+                entry.size, entry.flags, entry.face, entry.size, entry.flags)
     return fs
 end
 
 local _templateBtnFS = {}  -- fontstrings from UIPanelButtonTemplate buttons
 
 local function applyFont()
-    local name = CCS.GetFont and CCS.GetFont()
-    local LSM  = LibStub and LibStub("LibSharedMedia-3.0", true)
-    local path = name and LSM and LSM:Fetch("font", name, true)
     for _, e in ipairs(_fontStrings) do
-        if not e.fs then
-            -- pooled/destroyed; skip
-        elseif path then
-            e.fs:SetFont(path, e.size, e.flags)
-        else
-            -- Same SetFont path as named fonts, so Default renders identically.
-            e.fs:SetFont(e.face, e.size, e.flags)
+        if e.fs then
+            setFontSafe(e.fs, e.bold and FONT_BOLD or FONT_REGULAR,
+                        e.size, e.flags, e.face, e.size, e.flags)
+            refreshText(e.fs)
         end
     end
     -- Dropdown button labels (created in widgets.lua).
     for _, fs in ipairs(CCS._ddLabels or {}) do
-        if path then
-            fs:SetFont(path, fs._ccsSize or 10, fs._ccsDefaultFlags or "")
-        elseif fs._ccsDefaultFace then
-            fs:SetFont(fs._ccsDefaultFace, fs._ccsSize or 10, fs._ccsDefaultFlags)
-        end
+        setFontSafe(fs, FONT_REGULAR, fs._ccsSize or 10, fs._ccsDefaultFlags or "",
+                    fs._ccsDefaultFace, fs._ccsSize or 10, fs._ccsDefaultFlags)
+        refreshText(fs)
     end
     -- Template button labels (Raid, Mythic+, Help, etc.).
     for _, e in ipairs(_templateBtnFS) do
-        if not e.fs then
-        elseif path then
-            e.fs:SetFont(path, e.size, e.flags)
-        else
-            e.fs:SetFont(e.face, e.size, e.flags)
+        if e.fs then
+            setFontSafe(e.fs, FONT_REGULAR, e.size, e.flags, e.face, e.size, e.flags)
+            refreshText(e.fs)
         end
     end
     -- Boxes that auto-size to their button text must re-measure after a font
@@ -71,16 +96,31 @@ local function applyFont()
     if CCS._sizeModuleBox then CCS._sizeModuleBox() end
     if CCS._sizeWarnBox   then CCS._sizeWarnBox()   end
     if CCS._sizeCdBox     then CCS._sizeCdBox()     end
+
 end
 CCS._applyFont = applyFont
 CCS._makeFontString = makeFontString
+
+-- A font file's glyphs can still be loading on the first frames after login,
+-- which draws the text blank even though the font applied cleanly. Re-apply a
+-- few times early on; each pass just re-issues SetFont and SetText.
+local _reapplyScheduled = false
+local function scheduleFontReapply()
+    if _reapplyScheduled then return end
+    _reapplyScheduled = true
+    for _, delay in ipairs({ 0.05, 0.15, 0.3, 0.6, 1, 2 }) do
+        C_Timer.After(delay, applyFont)
+    end
+end
 
 -- Register a UIPanelButtonTemplate button's label so applyFont restyles it.
 local function registerButtonFont(btn)
     local fs = btn:GetFontString()
     if not fs then return end
     local face, size, flags = fs:GetFont()
-    _templateBtnFS[#_templateBtnFS + 1] = { fs = fs, face = face, size = size, flags = flags }
+    _templateBtnFS[#_templateBtnFS + 1] = {
+        fs = fs, face = face or DEFAULT_FACE, size = okSize(size), flags = flags or "",
+    }
 end
 CCS._registerButtonFont = registerButtonFont
 
@@ -164,10 +204,16 @@ end
 
 local function setAdvancedCbBorder(cb, isAdvanced)
     if not cb or not cb._ccsBorder then return end
-    if isAdvanced then
-        cb._ccsBorder:SetBackdropBorderColor(0.35, 0.55, 0.35, 1)
+    local b = cb._ccsBorder
+    local r, g, bl = 0.35, 0.35, 0.35
+    if isAdvanced then r, g, bl = 0.35, 0.55, 0.35 end
+    if b._ccsHover then
+        -- Rows are pooled: if this one is rebound while the mouse is over it,
+        -- update the colour OnLeave will restore, or it would repaint the
+        -- previous ability's colour onto the new one.
+        b._ccsR, b._ccsG, b._ccsB, b._ccsA = r, g, bl, 1
     else
-        cb._ccsBorder:SetBackdropBorderColor(0.35, 0.35, 0.35, 1)
+        b:SetBackdropBorderColor(r, g, bl, 1)
     end
 end
 
@@ -418,10 +464,11 @@ local INDENT     = 12
 local CHECKBOX_SIZE    = 18
 local WARN_DROPDOWN_W       = 110   -- warn dropdown width
 local COUNTDOWN_DROPDOWN_W       = 60    -- countdown dropdown width
-local LEFT_PANEL_FRACTION  = 0.50
+local ARROW_PATH = "Interface\\AddOns\\CustomCountdownSounds\\media\\"
+local LEFT_PANEL_FRACTION  = 0.58  -- wider left panel; right cell padding tightened to suit
 
 -- Column offsets
-local RIGHT_CELL_PAD      = 20
+local RIGHT_CELL_PAD      = 14
 local TEST_BTN_W          = 36   -- width of "Test" button
 local DIFF_LBL_W          = 20   -- width of "HC:" / "M:" labels
 
@@ -431,7 +478,7 @@ local RAID_HC_CHECKBOX_X  = RAID_HC_LBL_X + DIFF_LBL_W
 local RAID_HC_DROPDOWN_X  = RAID_HC_CHECKBOX_X + CHECKBOX_SIZE + 4
 
 -- Raid: M section
-local RAID_MYTHIC_LBL_X      = RAID_HC_DROPDOWN_X + COUNTDOWN_DROPDOWN_W + 14
+local RAID_MYTHIC_LBL_X      = RAID_HC_DROPDOWN_X + COUNTDOWN_DROPDOWN_W + 10
 local RAID_MYTHIC_CHECKBOX_X = RAID_MYTHIC_LBL_X + DIFF_LBL_W
 local RAID_MYTHIC_DROPDOWN_X = RAID_MYTHIC_CHECKBOX_X + CHECKBOX_SIZE + 4
 
@@ -449,7 +496,7 @@ local RAID_COLORS = {
     ["The Voidspire"]       = "|cffc17de8",
     ["Sporefall"]           = "|cffb8c777",
     -- 12.1.0
-    ["The Venomous Abyss"]  = "|cffae3df5",
+    ["The Venomous Abyss"]  = "|cff7fbf3f",
     ["The Tidebound Grotto"] = "|cff4dabd7",
 }
 
@@ -575,6 +622,13 @@ local function acquireRow(scrollChild, idx)
     lbl:SetAllPoints(); lbl:SetJustifyH("LEFT"); lbl:SetJustifyV("MIDDLE")
     local lblHL = lblFrame:CreateTexture(nil, "HIGHLIGHT")
     lblHL:SetAllPoints(); lblHL:SetColorTexture(1, 1, 1, 0.05)
+    -- Expand arrow for the per-trigger sub-rows. lbl fills the frame, so this
+    -- is positioned off the measured text width in rebind rather than anchored
+    -- to the label's right edge.
+    local chevron = lblFrame:CreateTexture(nil, "ARTWORK")
+    chevron:SetSize(8, 8)
+    chevron:SetVertexColor(0.44, 0.44, 0.44, 1)
+    chevron:Hide()
 
     -- Raid right-cell controls
     local hLbl = makeFontString(rightCell, "ARTWORK", "GameFontNormalSmall")
@@ -629,6 +683,7 @@ local function acquireRow(scrollChild, idx)
     local r = {
         leftCell=leftCell, rightCell=rightCell,
         warnDD=warnDD, warnCB=warnCB, warnNoLbl=warnNoLbl, icon=icon, lbl=lbl, lblFrame=lblFrame,
+        chevron=chevron,
         raidTestBtn=raidTestBtn, mplusTestBtn=mplusTestBtn,
         hLbl=hLbl, hCB=hCB, hDD=hDD, hNoLbl=hNoLbl, hValLbl=hValLbl,
         mLbl=mLbl, mCB=mCB, mDD=mDD, mNoLbl=mNoLbl, mValLbl=mValLbl,
@@ -684,7 +739,7 @@ local function acquireRow(scrollChild, idx)
     end
     local function refreshHDD()
         local a = r._ability
-        if not a then hLbl:Hide();  hCB:Hide(); hDD:Hide(); hNoLbl:Hide(); hValLbl:Hide(); return end
+        if not a or a._event then hLbl:Hide();  hCB:Hide(); hDD:Hide(); hNoLbl:Hide(); hValLbl:Hide(); return end
         local ctOn = CCS.GetCustomTimerOverride()
         local cbOn = hCB:GetChecked()
         local activeKey = r._hOver or r._hDefaultCD
@@ -713,7 +768,7 @@ local function acquireRow(scrollChild, idx)
     end
     local function refreshMDD()
         local a = r._ability
-        if not a then mLbl:Hide();  mCB:Hide(); mDD:Hide(); mNoLbl:Hide(); mValLbl:Hide(); return end
+        if not a or a._event then mLbl:Hide();  mCB:Hide(); mDD:Hide(); mNoLbl:Hide(); mValLbl:Hide(); return end
         local ctOn = CCS.GetCustomTimerOverride()
         local cbOn = mCB:GetChecked()
         local activeKey = r._mOver or r._mDefaultCD
@@ -742,7 +797,7 @@ local function acquireRow(scrollChild, idx)
     end
     local function refreshCdDD()
         local a = r._ability
-        if not a then cdCB:Hide(); cdDD:Hide(); cdNoLbl:Hide(); cdValLbl:Hide(); return end
+        if not a or a._event then cdCB:Hide(); cdDD:Hide(); cdNoLbl:Hide(); cdValLbl:Hide(); return end
         local ctOn = CCS.GetCustomTimerOverride()
         local cbOn = cdCB:GetChecked()
         local activeKey = r._cdOver or r._cdDefaultCD
@@ -810,7 +865,14 @@ local function acquireRow(scrollChild, idx)
         GameTooltip:Show()
     end)
     lblFrame:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    lblFrame:SetScript("OnClick", function() end)
+    lblFrame:SetScript("OnClick", function()
+        local a = r._ability
+        -- Variant sub-rows aren't expandable; only the base ability row is.
+        if not a or a._event then return end
+        if not CCS.GetExtraAuraTriggers() then return end
+        CCS.SetSpellExpanded(a.key, not CCS.IsSpellExpanded(a.key))
+        if CCS._fullRebuild then CCS._fullRebuild() end
+    end)
 
     -- Test button clicks — wired here so r is in scope
     raidTestBtn:SetScript("OnClick",  function() local a = r._ability; if a then testAbility(a, IsShiftKeyDown() and "H" or "M") end end)
@@ -819,7 +881,14 @@ local function acquireRow(scrollChild, idx)
     -- If a tick change on an advanced ability makes it no longer visible
     -- (Show-non-default off and no more ticks on), rebuild so the row hides.
     local function maybeRebuildForVisibility(a)
-        if a and a.advanced and not CCS.IsAbilityActive(a.key) then
+        if not a then return end
+        -- A sub-row's ticks count toward its parent being opted in, so check
+        -- the base ability. Variant keys aren't in the data and would always
+        -- report active.
+        local isVariant = a._event ~= nil
+        if not (a.advanced or isVariant) then return end
+        local key = isVariant and CCS.BaseKey(a.key) or a.key
+        if not CCS.IsAbilityActive(key) then
             if CCS._fullRebuild then CCS._fullRebuild() end
         end
     end
@@ -836,6 +905,14 @@ local function acquireRow(scrollChild, idx)
             CCS._refreshBulkUnderlines()
         end
         if changedTick then maybeRebuildForVisibility(a) end
+        -- A trigger sub-row is on screen either because its spell is expanded
+        -- or because it has a sound set. Once that sound is cleared, rebuild so
+        -- the row goes away unless the spell is still expanded.
+        if a._event and not CCS.HasTriggerConfig(a.key) then
+            local stillOpen = CCS.GetExtraAuraTriggers()
+                              and CCS.IsSpellExpanded(CCS.BaseKey(a.key))
+            if not stillOpen and CCS._fullRebuild then CCS._fullRebuild() end
+        end
     end
 
     warnCB:SetScript("OnClick", function(self)
@@ -926,7 +1003,20 @@ local function acquireRow(scrollChild, idx)
         local texID = scalarID and C_Spell.GetSpellTexture(scalarID)
         if texID then icon:SetTexture(texID); icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         else          icon:SetColorTexture(0.2, 0.2, 0.2, 0.5) end
+        -- Sub-rows share their parent's spell, so repeating the icon adds
+        -- nothing; the empty space also reads as indentation.
+        icon:SetShown(not ability._event)
         lbl:SetText(ability.label)
+        -- Arrow marks a row that can open into per-trigger sub-rows.
+        if not ability._event and CCS.GetExtraAuraTriggers() then
+            local open = CCS.IsSpellExpanded(ability.key)
+            chevron:SetTexture(ARROW_PATH .. (open and "down_arrow" or "right_arrow"))
+            chevron:ClearAllPoints()
+            chevron:SetPoint("LEFT", lblFrame, "LEFT", (lbl:GetStringWidth() or 0) + 6, 0)
+            chevron:Show()
+        else
+            chevron:Hide()
+        end
         if scalarID then C_Spell.RequestLoadSpellData(scalarID) end
 
         local defaultWarn = getDefaultWarn(ability)
@@ -1018,7 +1108,9 @@ local function acquireRow(scrollChild, idx)
     -- carrying a user override. Called on rebind and whenever an override changes.
     function r.refreshCbBorders()
         local a = r._ability; if not a then return end
-        local adv = a.advanced == true
+        -- Stack/remove sub-rows are non-default by nature, so they carry the
+        -- same green marker advanced abilities get.
+        local adv = a.advanced == true or a._event ~= nil
         setAdvancedCbBorder(warnCB, adv or (CCS.GetWarnOverride(a.key) ~= nil))
         if r._isMplus then
             setAdvancedCbBorder(cdCB, adv or (r._cdOver ~= nil))
@@ -1093,6 +1185,13 @@ local function acquireHeader(scrollChild, idx)
         local lbl = makeFontString(frame, "ARTWORK", "GameFontHighlightLarge")
         lbl:SetPoint("LEFT", frame, "LEFT", 0, 0)
         frame._lbl = lbl
+        -- Expand arrow, sits just after the boss name. White with alpha, so it
+        -- can be tinted to whatever colour the boss uses.
+        local arrow = frame:CreateTexture(nil, "ARTWORK")
+        arrow:SetSize(10, 10)
+        arrow:SetPoint("LEFT", lbl, "RIGHT", 5, 0)
+        arrow:Hide()
+        frame._arrow = arrow
         -- hover highlight, same as the ability rows
         local hl = frame:CreateTexture(nil, "HIGHLIGHT")
         hl:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 2)
@@ -1287,25 +1386,30 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
         if entry._color and sectionText then
             sectionText = entry._color .. sectionText .. "|r"
         end
+        hdr._lbl:SetText(sectionText)
+
+        -- Expand arrow: right when collapsed, down when open. Tinted to match
+        -- the boss colour, a shade darker so it reads as secondary.
         if bossKey and hasAdvanced then
-            -- Match section colour but a shade darker. Fall back to grey.
+            local open = CCS.GetShowAllBoss(bossKey)
+            hdr._arrow:SetTexture(ARROW_PATH .. (open and "down_arrow" or "right_arrow"))
             local base = entry._color
                          or (entry.section and entry.section:match("(|c%x%x%x%x%x%x%x%x)"))
-            local chevronColor = "|cffaaaaaa"
+            local r, g, b = 0.67, 0.67, 0.67
             if base then
-                local a, r, g, b = base:match("^|c(%x%x)(%x%x)(%x%x)(%x%x)$")
-                if r then
+                local hr, hg, hb = base:match("^|c%x%x(%x%x)(%x%x)(%x%x)$")
+                if hr then
                     local factor = 0.65
-                    r = math.floor(tonumber(r, 16) * factor)
-                    g = math.floor(tonumber(g, 16) * factor)
-                    b = math.floor(tonumber(b, 16) * factor)
-                    chevronColor = string.format("|c%s%02x%02x%02x", a, r, g, b)
+                    r = tonumber(hr, 16) / 255 * factor
+                    g = tonumber(hg, 16) / 255 * factor
+                    b = tonumber(hb, 16) / 255 * factor
                 end
             end
-            local chevron = CCS.GetShowAllBoss(bossKey) and "^" or "v"
-            sectionText = (sectionText or "") .. " " .. chevronColor .. chevron .. "|r"
+            hdr._arrow:SetVertexColor(r, g, b, 1)
+            hdr._arrow:Show()
+        else
+            hdr._arrow:Hide()
         end
-        hdr._lbl:SetText(sectionText)
 
         -- Left-click: toggle "Show non-default" (only when there's anything to reveal).
         -- Right-click: open the Encounter Journal to this boss.
@@ -1378,6 +1482,38 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
             r.leftCell:Show(); r.rightCell:Show()
 
             y = y - ROW_HEIGHT - 1
+
+            -- Sub-rows per extra aura trigger. Same spell, its own storage key,
+            -- so each gets an independent warning sound. Shown when the spell is
+            -- expanded, and also whenever a trigger already has a sound set, so
+            -- an imported profile's settings are never active but hidden.
+            if CCS.SupportsAuraTriggers() then
+                local expanded = CCS.GetExtraAuraTriggers()
+                                 and CCS.IsSpellExpanded(ability.key)
+                for _, event in ipairs({ "stack", "remove" }) do
+                    local vKey = ability.key .. CCS.EVENT_SUFFIX[event]
+                    if expanded or CCS.HasTriggerConfig(vKey) then
+                    rowIdx = rowIdx + 1
+                    local vr = acquireRow(scrollChild, rowIdx)
+                    local vAbility = CCS.MakeEventAbility(ability, event)
+                    -- The parent row already names the spell, so a sub-row only
+                    -- needs to say which trigger it is.
+                    vAbility.label = "   |cff808080-|r |cff80d0ff"
+                                     .. CCS.EVENT_LABEL[event] .. "|r"
+                    vr.leftCell:SetSize(leftW, ROW_HEIGHT)
+                    vr.leftCell:ClearAllPoints()
+                    vr.leftCell:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0,     y)
+                    vr.rightCell:SetSize(rightW, ROW_HEIGHT)
+                    vr.rightCell:ClearAllPoints()
+                    vr.rightCell:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", leftW, y)
+                    vr.rebind(vAbility, isMplus)
+                    -- Right cell stays shown so Set Default is available; its
+                    -- countdown controls suppress themselves for variant rows.
+                    vr.leftCell:Show(); vr.rightCell:Show()
+                    y = y - ROW_HEIGHT - 1
+                    end
+                end
+            end
             end
         end
 
@@ -1538,30 +1674,26 @@ local function BuildCCSOptions(panel, isStandalone)
         "|cffFFD100Raid vs Mythic+|r",
         "Use the |cffccccccModule|r buttons to switch between raid and Mythic+ data. In raid, abilities have separate countdown boxes for Heroic (HC) and Mythic (M) difficulty, since durations sometimes differ. Mythic+ only uses one tickbox.",
         " ",
-        "|cffFFD100Choosing sounds|r",
-        "Use the dropdown next to each tickbox to pick which sound plays. Anything you customise is remembered per profile.",
-        " ",
-        "|cffFFD100Sound output|r",
-        "The |cffccccccSound output|r dropdown at the top sets which of the game's audio channels these sounds play through (Master, Music, Effects, Ambience or Dialog). This lets you control their volume from WoW's own audio panel. For example, route them through 'Dialog' and they'll follow your Dialog volume slider, so you can adjust them separately from everything else. Leave it on Master if you just want them at your overall game volume.",
-        " ",
-        "|cffFFD100Search|r",
-        "Use the search box below the header to filter the list by ability name. Matches show even if they're normally hidden under a collapsed boss.",
-        " ",
-        "|cffFFD100Default vs non-default abilities|r",
-        "Most bosses already come with sensible defaults. You just need to enable them by ticking the boxes. Extra abilities that don't have a default are hidden to keep the list clean.",
-        "|cff80d0ffClick a boss name|r to show or hide those extra (non-default) abilities. A small |cffffffff v |r means it can be expanded, |cffffffff ^ |r means it's open.",
-        " ",
-        "|cffFFD100All Warnings / All Countdowns|r",
-        "The Enable/Disable buttons at the top flip every visible ability at once, so you can silence or turn on a whole section quickly.",
-        " ",
-        "|cffFFD100Right-click a boss name|r",
-        "Opens the in-game Dungeon Journal to that boss, if a journal link is set.",
+        "|cffFFD100The ability list|r",
+        "Most bosses already come with sensible defaults. You just need to enable them by ticking the boxes, and you can pick a different sound in the dropdown next to each one.",
+        "Extra abilities that don't have a default are hidden to keep the list clean. |cff80d0ffClick a boss name|r to show or hide them. A small |cffffffff v |r means it can be expanded, |cffffffff ^ |r means it's open.",
         " ",
         "|cffFFD100Profiles|r",
-        "Use |cffccccccProfiles|r to keep different setups (e.g. one per character or per role). |cffccccccDefaults|r resets your current profile back to the built-in settings.",
+        "Use |cffccccccProfiles|r to keep different setups (e.g. one per character or per role). You can also export a profile as a string to share it with someone else. |cffccccccDefaults|r resets your current profile back to the built-in settings.",
         " ",
-        "|cffFFD100Manual Mode (Advanced)|r",
-        "Lets you override a countdown's duration if a timer is ever wrong, and lets you add countdowns to abilities that don't have a default one. Most people never need this.",
+        "|cffFFD100Advanced|r",
+        "|cff80d0ffManual Timers|r lets you override a countdown's duration if a timer is ever wrong, and add countdowns to abilities that don't have one.",
+        "|cff80d0ffExtra aura triggers|r lets an ability also play a sound when it gains a stack or drops off, not just when it lands. Tick it, then click a spell name to open its triggers.",
+        " ",
+        "|cffFFD100Tips|r",
+        "|cff80d0ffRight-click a boss name|r to open the Dungeon Journal to that boss.",
+        "|cff80d0ffAll Warnings / All Countdowns|r flip every visible ability at once, so you can silence or enable a whole section quickly.",
+        "|cff80d0ffSearch|r filters the list by ability name, including ones hidden under a collapsed boss.",
+        "|cff80d0ffSound output|r sets which audio channel these sounds use, so you can control their volume from WoW's own audio panel.",
+        " ",
+        "|cffFFD100Questions or feedback?|r",
+        "Leave a comment on CurseForge, or contact the following.",
+        "|cff80d0ffDiscord:|r knofle   |cff80d0ffBattle.net:|r knofle#2235",
     }, "\n"))
 
     helpContent:SetHeight(helpText:GetStringHeight() + 10)
@@ -1711,6 +1843,7 @@ local function BuildCCSOptions(panel, isStandalone)
             CCS.SetScale(v)
             refresh()
             if CCS._applyWindowScale then CCS._applyWindowScale(v) end
+            if CCS._applyProfilesScale then CCS._applyProfilesScale(v) end
         end
         s:SetScript("OnMouseDown", function(self, btn)
             if btn ~= "LeftButton" then return end
@@ -1734,43 +1867,8 @@ local function BuildCCSOptions(panel, isStandalone)
         addTooltip(s, "Window scale", "Resize the whole window.")
     end
 
-    -- Font picker, to the right of the sound output dropdown.
-    local fontLbl = makeFontString(settingsBox, "ARTWORK", "GameFontNormalSmall")
-    fontLbl:SetText("|cffccccccFont|r")
-    fontLbl:SetPoint("LEFT", chanDD, "RIGHT", 14, 0)
-
-    local fontDD = CCS_CreateDropdown(settingsBox, 180, 20, 11)
-    fontDD._noGreen = true
-    fontDD._wantSearch = true  -- wide popup + search, but no sound-preview button
-    fontDD:SetPoint("LEFT", fontLbl, "RIGHT", 6, 0)
-
-    local function buildFontItems()
-        local items = { { label = "Default", value = "__default__" } }
-        local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
-        if LSM then
-            for _, name in ipairs(LSM:List("font")) do
-                items[#items + 1] = {
-                    label = name,
-                    value = name,
-                    font  = LSM:Fetch("font", name, true),  -- preview in its own face
-                }
-            end
-        end
-        return items
-    end
-    fontDD:SetItems(buildFontItems())
-    fontDD:SetValue(CCS.GetFont() or "__default__")
-    fontDD:SetOnSelect(function(v)
-        withCombatGuard(function()
-            CCS.SetFont(v ~= "__default__" and v or nil)
-            if CCS._applyFont then CCS._applyFont() end
-        end)
-    end)
-    addTooltip(fontDD, "Font", "Changes the font used throughout the addon.")
-
     CCS._syncSettingsBox = function()
         chanDD:SetValue(CCS.GetChannel())
-        fontDD:SetValue(CCS.GetFont() or "__default__")
         if scaleSlider then
             scaleSlider._value = CCS.GetScale()
             if scaleSlider.refresh then scaleSlider:refresh() end
@@ -1800,18 +1898,36 @@ local function BuildCCSOptions(panel, isStandalone)
     headerBar:SetPoint("TOPLEFT",  topBlock, "BOTTOMLEFT",  0, 0)
     headerBar:SetPoint("TOPRIGHT", topBlock, "BOTTOMRIGHT", 0, 0)
 
-    -- Global "Manual Mode (Advanced)" checkbox
+    -- Global "Manual Timers (Advanced)" checkbox
     local durationOverrideCB = CreateFrame("CheckButton", nil, headerBar, "UICheckButtonTemplate")
     durationOverrideCB:SetSize(16, 16)
     stripCheckBorder(durationOverrideCB)
     local durationOverrideLbl = makeFontString(headerBar, "ARTWORK", "GameFontNormalSmall")
-    durationOverrideLbl:SetText("|cffaaaaaa Manual Mode (Advanced)|r")
+    durationOverrideLbl:SetText("|cffaaaaaa Manual Timers (Advanced)|r")
     durationOverrideLbl:SetPoint("LEFT", durationOverrideCB, "RIGHT", 2, 0)
-    addTooltip(durationOverrideCB, "Manual Mode (Advanced)",
+    addTooltip(durationOverrideCB, "Manual Timers (Advanced)",
         "Check this if a debuff duration is wrong, you need to manually adjust it, or if you need them customized for some other reason.\nContact me if you want a default value changed.")
 
+    -- Global "Extra aura triggers" checkbox, sits left of Manual Timers.
+    local extraTriggersCB = CreateFrame("CheckButton", nil, headerBar, "UICheckButtonTemplate")
+    extraTriggersCB:SetSize(16, 16)
+    stripCheckBorder(extraTriggersCB)
+    local extraTriggersLbl = makeFontString(headerBar, "ARTWORK", "GameFontNormalSmall")
+    extraTriggersLbl:SetText("|cffaaaaaa Extra aura triggers|r")
+    extraTriggersLbl:SetPoint("LEFT", extraTriggersCB, "RIGHT", 2, 0)
+    addTooltip(extraTriggersCB, "Extra aura triggers",
+        "Lets each spell also play a sound when it gains a stack or drops off, not just when it lands.\nClick a spell name to open its triggers.")
+    extraTriggersCB:SetScript("OnClick", function(self)
+        withCombatGuard(function()
+            local on = self:GetChecked()
+            CCS.SetExtraAuraTriggers(on)
+            if not on then CCS.ClearSpellExpansions() end
+            fullRebuild()
+        end)
+    end)
+
     -- Search box (filters the ability list live). Lives in the header bar on
-    -- the same baseline as Manual Mode, left side, ~30% width.
+    -- the same baseline as Manual Timers, left side, ~30% width.
     local searchBox = CreateFrame("EditBox", nil, headerBar, "SearchBoxTemplate")
     searchBox:SetHeight(18)
     if searchBox.Instructions then searchBox.Instructions:SetText("Search abilities...") end
@@ -2180,6 +2296,16 @@ local function BuildCCSOptions(panel, isStandalone)
         durationOverrideCB:SetPoint("RIGHT", durationOverrideLbl, "LEFT", 0, 0)
         durationOverrideCB:SetChecked(CCS.GetCustomTimerOverride())
 
+        extraTriggersLbl:ClearAllPoints()
+        extraTriggersLbl:SetPoint("RIGHT", durationOverrideCB, "LEFT", -14, 0)
+        extraTriggersCB:ClearAllPoints()
+        extraTriggersCB:SetPoint("RIGHT", extraTriggersLbl, "LEFT", 0, 0)
+        extraTriggersCB:SetChecked(CCS.GetExtraAuraTriggers())
+        -- Only offer it on clients whose API can play on stack/removal.
+        local canTrigger = not CCS.SupportsAuraTriggers or CCS.SupportsAuraTriggers()
+        extraTriggersCB:SetShown(canTrigger)
+        extraTriggersLbl:SetShown(canTrigger)
+
         if CCS._searchBox then
             CCS._searchBox:ClearAllPoints()
             CCS._searchBox:SetPoint("BOTTOMLEFT", headerBar, "BOTTOMLEFT", 20, 6)
@@ -2210,6 +2336,7 @@ local function BuildCCSOptions(panel, isStandalone)
             if CCS._refreshBulkUnderlines then CCS._refreshBulkUnderlines() end
             if CCS._syncSettingsBox then CCS._syncSettingsBox() end
             if CCS._applyWindowScale then CCS._applyWindowScale(CCS.GetScale()) end
+            if CCS._applyProfilesScale then CCS._applyProfilesScale(CCS.GetScale()) end
             if CCS._applyFont then CCS._applyFont() end
         end
     end
@@ -2297,9 +2424,11 @@ local function BuildCCSOptions(panel, isStandalone)
             updateScrollBar()
             if CCS._refreshBulkUnderlines then CCS._refreshBulkUnderlines() end
 
-            -- Window is up; fill the rest of the pool in the background.
+            -- Cache the chosen font path first, then start prewarm, so rows
+            -- created in the background pick it up. applyFont fonts what exists.
             StartPrewarm(scrollChild)
             applyFont()  -- match any saved font choice on first open
+            scheduleFontReapply()
         else
             -- Already built; re-apply module then resync.
             if CCS.ApplyModule then CCS.ApplyModule() end
@@ -2601,7 +2730,7 @@ SlashCmdList["CCS"] = function(msg)
     end
 
     if arg == "privatetest" then
-        local hasGeneral = C_UnitAuras.AddAuraAppliedSound ~= nil
+        local hasGeneral = (C_UnitAuras.AddAuraSound or C_UnitAuras.AddAuraAppliedSound) ~= nil
         local failed = 0
         local sources = { { label = "Raid", data = CCS_Spells_Raid } }
         for _, dungeon in ipairs(CCS.MplusDungeons) do
@@ -2678,12 +2807,18 @@ SlashCmdList["CCS"] = function(msg)
     end
 
     if arg == "reset" then
+        -- scale back to 100%
+        CCS.SetScale(1.0)
+        if CCS._applyWindowScale then CCS._applyWindowScale(1.0) end
+        if CCS._syncSettingsBox then CCS._syncSettingsBox() end
         if standaloneWindow then
             standaloneWindow:ClearAllPoints()
             standaloneWindow:SetPoint("CENTER")
             standaloneWindow:SetSize(780, 600)
-            print("|cffffff00CCS:|r Window position and size reset.")
         end
+        -- reset the profile window position and scale too
+        if CCS.ResetProfilesPosition then CCS.ResetProfilesPosition() end
+        print("|cffffff00CCS:|r Window position, size and scale reset.")
         return
     end
 

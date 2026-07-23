@@ -56,15 +56,16 @@ CCS.getCurrentDifficulty = getCurrentDifficulty
 local dbDefaults = {
     profile = {
         showAllBosses = {},
+        expandedSpells = {},
         channel       = "Master", -- output channel: Master/Music/SFX/Ambience/Dialog
     },
     char = {
         minimap              = { minimapPos = 225, hide = false },
-        font                 = nil,  -- LSM font name; nil = game default
         module               = "raid",
         activeDungeon        = "__all__",
         activeRaid           = "__all__",
         customTimerOverride  = false,
+        extraAuraTriggers    = false,  -- show the per-trigger sub-rows
         scale                = 1.0,   -- standalone window scale
     },
 }
@@ -102,13 +103,14 @@ CCS.MplusDungeons = (tocVersion >= 120100) and mplusDungeons_121 or mplusDungeon
 local db
 
 function CCS.GetProfile()
-    if not db then return { warnEnabled={}, warnOverride={}, countdownEnabled={}, countdownOverride={}, showAllBosses={} } end
+    if not db then return { warnEnabled={}, warnOverride={}, countdownEnabled={}, countdownOverride={}, showAllBosses={}, expandedSpells={} } end
     local p = db.profile
     if rawget(p, "warnEnabled")       == nil then rawset(p, "warnEnabled",       {}) end
     if rawget(p, "warnOverride")      == nil then rawset(p, "warnOverride",       {}) end
     if rawget(p, "countdownEnabled")  == nil then rawset(p, "countdownEnabled",   {}) end
     if rawget(p, "countdownOverride") == nil then rawset(p, "countdownOverride",  {}) end
     if rawget(p, "showAllBosses")     == nil then rawset(p, "showAllBosses",      {}) end
+    if rawget(p, "expandedSpells")    == nil then rawset(p, "expandedSpells",     {}) end
     if rawget(p, "channel")           == nil then rawset(p, "channel",     "Master") end
     return p
 end
@@ -166,7 +168,7 @@ end
 -- A profile is shared as a printable string. We serialize only the settings
 -- that describe "how this profile sounds" (the four delta tables + channel),
 -- keyed by ability key so the string survives spell-ID changes. Personal
--- display prefs (scale, font, module) live in char and are never exported.
+-- display prefs (scale, module) live in char and are never exported.
 
 local EXPORT_PREFIX = "CCS1"  -- magic marker + format version
 
@@ -174,7 +176,7 @@ local EXPORT_PREFIX = "CCS1"  -- magic marker + format version
 local EXPORT_KEYS = {
     warnEnabled = true, warnOverride = true,
     countdownEnabled = true, countdownOverride = true,
-    channel = true, showAllBosses = true,
+    channel = true, showAllBosses = true, expandedSpells = true,
 }
 
 local function getLibs()
@@ -198,11 +200,6 @@ function CCS.ExportProfile(profileName)
     for k in pairs(EXPORT_KEYS) do
         if src[k] ~= nil then payload[k] = src[k] end
     end
-    -- Font lives in char (per-character), not the profile, but it's part of
-    -- "how this looks" so we ship it with the export. Use a marker for the
-    -- default so an import can reset the font as well as set one.
-    payload.font = CCS.GetFont() or "__default__"
-
     local serialized = ser:Serialize(payload)
     local compressed = def:CompressDeflate(serialized, { level = 7 })
     if not compressed then return nil, "Compression failed." end
@@ -242,7 +239,6 @@ function CCS.DecodeProfile(str)
             clean[k] = v
         end
     end
-    if type(payload.font) == "string" then clean.font = payload.font end
     return clean
 end
 
@@ -265,11 +261,8 @@ function CCS.ImportProfile(payload, targetName)
     end
 
     if CCS._onProfileChange then CCS._onProfileChange() end
-    -- Font is per-character; apply it if the string carried one.
-    if payload.font ~= nil then
-        CCS.SetFont(payload.font ~= "__default__" and payload.font or nil)
-        if CCS._applyFont then CCS._applyFont() end
-    end
+    -- Older strings may carry a font field; the addon ships its own font now,
+    -- so it is ignored rather than treated as an error.
     return true
 end
 
@@ -419,6 +412,29 @@ function CCS.SetCustomTimerOverride(val)
     CCS.GetChar().customTimerOverride = val
 end
 
+-- Reveals the per-spell expand chevrons and their apply/stack/remove sub-rows.
+-- Visibility only: sounds already set on a trigger keep playing either way,
+-- the same way an override applies whether or not Manual Mode is on.
+function CCS.GetExtraAuraTriggers()
+    if CCS.SupportsAuraTriggers and not CCS.SupportsAuraTriggers() then
+        return false
+    end
+    return CCS.GetChar().extraAuraTriggers == true
+end
+
+function CCS.SetExtraAuraTriggers(val)
+    CCS.GetChar().extraAuraTriggers = val
+end
+
+-- True if this exact trigger key has a sound set on it (ticked or overridden).
+-- A configured trigger stays visible even with the toggle off, so an imported
+-- profile's settings can't end up active but hidden with no way to clear them.
+function CCS.HasTriggerConfig(triggerKey)
+    if not triggerKey then return false end
+    local p = CCS.GetProfile()
+    return p.warnEnabled[triggerKey] == true or p.warnOverride[triggerKey] ~= nil
+end
+
 local VALID_CHANNELS = { Master = true, Music = true, SFX = true, Ambience = true, Dialog = true }
 function CCS.GetChannel() return CCS.GetProfile().channel or "Master" end
 function CCS.SetChannel(v)
@@ -432,10 +448,6 @@ function CCS.SetScale(v)
     end
 end
 
--- Font is stored as an LSM font name. nil means "use the game default".
-function CCS.GetFont() return CCS.GetChar().font end
-function CCS.SetFont(name) CCS.GetChar().font = name end
-
 function CCS.GetShowAllBoss(bossKey)
     if not bossKey then return false end
     return CCS.GetProfile().showAllBosses[bossKey] == true
@@ -447,6 +459,27 @@ function CCS.SetShowAllBoss(bossKey, val)
     CCS.RefreshSounds()
 end
 
+-- Per-spell expansion: shows the apply/stack/remove sub-rows for one ability.
+function CCS.IsSpellExpanded(key)
+    if not key then return false end
+    local t = CCS.GetProfile().expandedSpells
+    return t and t[key] == true
+end
+
+function CCS.SetSpellExpanded(key, val)
+    if not key then return end
+    local p = CCS.GetProfile()
+    p.expandedSpells = p.expandedSpells or {}
+    p.expandedSpells[key] = val or nil
+end
+
+-- Collapse every expanded spell. Used when the triggers toggle is switched off,
+-- so turning it back on starts from a clean list rather than restoring whatever
+-- was open before. Configured triggers stay visible on their own regardless.
+function CCS.ClearSpellExpansions()
+    CCS.GetProfile().expandedSpells = {}
+end
+
 -- opt-in = at least one warn/countdown tick is on. a chosen sound alone
 -- doesn't count, an unticked ability stays hidden.
 function CCS.IsAbilityOptedIn(key)
@@ -455,6 +488,11 @@ function CCS.IsAbilityOptedIn(key)
     if p.warnEnabled[key] == true then return true end
     local ce = p.countdownEnabled[key]
     if ce and (ce.H == true or ce.M == true) then return true end
+    -- A sound set on only a stack/remove event still counts as opting in, or
+    -- the ability would disappear (and stop registering) when its boss collapses.
+    for _, event in ipairs({ "stack", "remove" }) do
+        if p.warnEnabled[key .. CCS.EVENT_SUFFIX[event]] == true then return true end
+    end
     return false
 end
 
@@ -749,11 +787,107 @@ end
 -- Aura Registration
 --------------------------------------------------
 
--- 12.1.0 renamed AddPrivateAuraAppliedSound to AddAuraAppliedSound and lifted
--- the private-only restriction. Feature-detect so we work on both clients.
-local addAuraSound         = C_UnitAuras.AddAuraAppliedSound    or C_UnitAuras.AddPrivateAuraAppliedSound
-local removeAuraSound      = C_UnitAuras.RemoveAuraAppliedSound or C_UnitAuras.RemovePrivateAuraAppliedSound
-local hasGeneralAuraSounds = C_UnitAuras.AddAuraAppliedSound ~= nil
+-- The private-aura sound API has been renamed twice as it was generalized:
+--   AddPrivateAuraAppliedSound  (original, private auras only)
+--   AddAuraAppliedSound         (12.1.0, restriction lifted)
+--   AddAuraSound                (12.1.0 PTR 6, also supports gain/remove events)
+-- Feature-detect newest first so we work across all clients. The add call is
+-- routed through callAddAuraSound below, since its signature changed too.
+local removeAuraSound      = C_UnitAuras.RemoveAuraSound
+                          or C_UnitAuras.RemoveAuraAppliedSound
+                          or C_UnitAuras.RemovePrivateAuraAppliedSound
+local hasGeneralAuraSounds = (C_UnitAuras.AddAuraSound or C_UnitAuras.AddAuraAppliedSound) ~= nil
+
+-- 12.1.0 PTR 6: AddAuraSound can fire on apply, on gaining an application
+-- (stack) or on removal. A spell's settings are stored under its own key for
+-- apply, and under key.."@stack" / key.."@remove" for the other two, so the
+-- existing flat storage, profiles and export all work unchanged.
+-- The addon ships its own font, so nothing depends on LibSharedMedia or on
+-- whatever fonts the user happens to have installed. Bold is for the large
+-- headings; regular for everything else.
+CCS.FONT_DIR     = "Interface\\AddOns\\CustomCountdownSounds\\fonts\\"
+CCS.FONT_REGULAR = CCS.FONT_DIR .. "Expressway.ttf"
+CCS.FONT_BOLD    = CCS.FONT_DIR .. "Expressway Bold.ttf"
+
+CCS.AURA_EVENTS = { "apply", "stack", "remove" }
+CCS.EVENT_SUFFIX = { apply = "", stack = "@stack", remove = "@remove" }
+-- Display names for the trigger sub-rows.
+CCS.EVENT_LABEL  = { apply = "Aura Applied", stack = "Stack Gain", remove = "Aura Removed" }
+
+-- Strip a variant suffix to get back the base ability key.
+function CCS.BaseKey(key)
+    if type(key) ~= "string" then return key end
+    return (key:gsub("@%a+$", ""))
+end
+
+-- Default warn sound authored for an extra aura event, if any. Data files can
+-- set soundStack / soundRemove alongside soundM, e.g.
+--   { key = "x", label = "X", privateID = 123,
+--     soundM = "file:warn", soundStack = "file:stack" }
+-- A table is accepted for symmetry with soundM but only its warn slot is used,
+-- since a countdown makes no sense on a stack or removal trigger.
+function CCS.GetEventDefault(ability, event)
+    if not ability or event == "apply" then return nil end
+    local s = (event == "stack") and ability.soundStack or ability.soundRemove
+    if type(s) == "table" then return s[1] end
+    return s
+end
+
+-- Build the stand-in ability table a stack/remove sub-row registers under.
+-- Its authored default (if any) is passed as soundM so the existing warn
+-- resolution and dropdown logic pick it up with no special-casing.
+function CCS.MakeEventAbility(ability, event)
+    return {
+        key       = ability.key .. CCS.EVENT_SUFFIX[event],
+        label     = ability.label,
+        privateID = ability.privateID,
+        soundM    = CCS.GetEventDefault(ability, event),
+        _event    = event,
+    }
+end
+
+-- ONLY PLACE that knows the real API shape. 12.1.0 PTR 6 replaced the single
+-- options table with two arguments:
+--     C_UnitAuras.AddAuraSound(trigger, sound)
+-- where trigger is an Enum.UnitAuraSoundTrigger value and sound carries the
+-- unit/spell/file/channel that the old single-table call took.
+local legacyAddSound = C_UnitAuras.AddAuraAppliedSound
+                    or C_UnitAuras.AddPrivateAuraAppliedSound
+
+local TRIGGER = Enum.UnitAuraSoundTrigger and {
+    apply  = Enum.UnitAuraSoundTrigger.Added,
+    stack  = Enum.UnitAuraSoundTrigger.ApplicationsIncreased,
+    remove = Enum.UnitAuraSoundTrigger.Removed,
+}
+
+-- Stack/removal triggers need the newer two-argument API. Older clients can
+-- only play on application, so the whole feature stays hidden there.
+function CCS.SupportsAuraTriggers()
+    return C_UnitAuras.AddAuraSound ~= nil and TRIGGER ~= nil
+end
+
+local function callAddAuraSound(unitToken, spellID, path, channel, event)
+    local sound = {
+        unitToken     = unitToken,
+        spellID       = spellID,
+        soundFileName = path,
+        outputChannel = channel,
+    }
+    if C_UnitAuras.AddAuraSound and TRIGGER then
+        local trigger = TRIGGER[event or "apply"]
+        if trigger ~= nil then
+            local ok, id = pcall(C_UnitAuras.AddAuraSound, trigger, sound)
+            if ok and id then return id end
+        end
+    end
+    -- Older clients only ever played on application, so never use this for
+    -- stack/remove or they'd fire at the wrong moment.
+    if legacyAddSound and (not event or event == "apply") then
+        local ok, id = pcall(legacyAddSound, sound)
+        if ok and id then return id end
+    end
+    return nil
+end
 
 local handles = {}
 -- Pending work that hit combat/dead lockdown; flushPending() drains them later.
@@ -774,7 +908,7 @@ local function unregisterAbility(key)
         return
     end
     for _, id in ipairs(handles[key]) do
-        removeAuraSound(id)
+        pcall(removeAuraSound, id)
     end
     handles[key] = nil
 end
@@ -829,23 +963,37 @@ local function registerAbility(ability, diff, bossKey)
         end
     end
 
-    local paths = resolveAbilitySounds(ability, diff)
-    if not paths then return end
-    -- Wipe any stale handles to avoid double playback from racing refresh paths.
-    if handles[ability.key] then unregisterAbility(ability.key) end
-    handles[ability.key] = {}
+    -- Register one event's sounds under its own storage key.
+    local function registerEvent(evAbility, evKey, event)
+        -- Clear old handles first, so a sound the user just turned off stops
+        -- even when we bail out below with nothing to register.
+        if handles[evKey] then unregisterAbility(evKey) end
+        local paths = resolveAbilitySounds(evAbility, diff)
+        if not paths or #paths == 0 then return end
+        handles[evKey] = {}
 
-    for _, spellID in ipairs(ids) do
-        for _, path in ipairs(paths) do
-            local id = addAuraSound({
-                unitToken     = "player",
-                spellID       = spellID,
-                soundFileName = path,
-                outputChannel = CCS.GetChannel(),
-            })
-            if id then
-                handles[ability.key][#handles[ability.key] + 1] = id
+        for _, spellID in ipairs(ids) do
+            for _, path in ipairs(paths) do
+                local id = callAddAuraSound("player", spellID, path,
+                                            CCS.GetChannel(), event)
+                if id then
+                    handles[evKey][#handles[evKey] + 1] = id
+                end
             end
+        end
+    end
+
+    -- apply: the ability's own key, so existing settings keep working.
+    registerEvent(ability, ability.key, "apply")
+
+    -- stack / remove: same spell IDs, separate keys, no built-in default sound
+    -- (the user picks one), so only register when they've enabled it.
+    for _, event in ipairs({ "stack", "remove" }) do
+        local vKey = ability.key .. CCS.EVENT_SUFFIX[event]
+        if CCS.isWarnEnabled(vKey) then
+            registerEvent(CCS.MakeEventAbility(ability, event), vKey, event)
+        elseif handles[vKey] then
+            unregisterAbility(vKey)
         end
     end
 end

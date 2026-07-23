@@ -1,4 +1,6 @@
 -- profiles_ui.lua
+-- custom profile manager, replaces the AceDBOptions/AceConfig dialog so we can
+-- drop those libs. built on our own dropdown/button widgets. handles switch,
 -- new, copy, rename, delete, plus profile export/import (LibSerialize+LibDeflate).
 
 local addonName = ...
@@ -11,11 +13,12 @@ local function fstring(parent, layer, obj)
     return parent:CreateFontString(nil, layer, obj)
 end
 
-local COL_BG        = { 0.078, 0.078, 0.078, 1 }
+local COL_BG        = { 0.11, 0.075, 0.075, 1 }  -- dark grey with a slight red hue
 local COL_ROW       = { 0.13, 0.13, 0.13, 1 }
 local COL_BORDER    = { 0.25, 0.25, 0.25, 1 }
-local BOX_W         = 748   -- paste box width (window 600 - margins)
-local BOX_H         = 130   -- paste box height
+local COL_EDGE      = { 0.25, 0.25, 0.25, 1 }     -- outer window edge (same as internal borders)
+local BOX_W         = 524   -- paste box width
+local BOX_H         = 91    -- paste box height
 
 -- small helper: a flat button matching the rest of the UI
 local function makeFlatButton(parent, w, h, text)
@@ -162,8 +165,8 @@ StaticPopupDialogs["CCS_IMPORT_TARGET"] = {
 local function build()
     panel = CreateFrame("Frame", "CCSProfilesWindow", UIParent, "BackdropTemplate")
     tinsert(UISpecialFrames, "CCSProfilesWindow")  -- close on Esc
-    panel:SetSize(780, 580)
-    panel:SetPoint("CENTER")
+    panel:SetSize(546, 440)
+    panel:SetPoint("TOPLEFT", UIParent, "CENTER", -273, 220)
     panel:SetFrameStrata("HIGH")
     panel:SetFrameLevel(50)
     panel:SetBackdrop({
@@ -171,7 +174,7 @@ local function build()
         edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1,
     })
     panel:SetBackdropColor(unpack(COL_BG))
-    panel:SetBackdropBorderColor(unpack(COL_BORDER))
+    panel:SetBackdropBorderColor(unpack(COL_EDGE))
     panel:EnableMouse(true)
     panel:SetMovable(true)
     panel:RegisterForDrag("LeftButton")
@@ -260,7 +263,8 @@ local function build()
 
     local expBox = CreateFrame("EditBox", nil, expScroll)
     expBox:SetMultiLine(true)
-    expBox:SetFontObject("GameFontHighlightSmall")
+    local _bf = select(1, GameFontHighlightSmall:GetFont())
+    expBox:SetFont(_bf, 10, "")
     expBox:SetWidth(BOX_W - 34)   -- fixed width forces wrapping instead of growth
     expBox:SetHeight(BOX_H - 8)
     expBox:SetAutoFocus(false)
@@ -303,7 +307,7 @@ local function build()
 
     local impBox = CreateFrame("EditBox", nil, impScroll)
     impBox:SetMultiLine(true)
-    impBox:SetFontObject("GameFontHighlightSmall")
+    impBox:SetFont(_bf, 10, "")
     impBox:SetWidth(BOX_W - 34)
     impBox:SetHeight(BOX_H - 8)     -- fill the box so the whole area is clickable
     impBox:SetAutoFocus(false)
@@ -330,11 +334,37 @@ local function build()
     return panel
 end
 
+-- Scale the profile window to match the addon's scale setting, keeping the
+-- top-left corner fixed so it grows toward the bottom-right like the main window.
+function CCS._applyProfilesScale(v)
+    if not panel then return end
+    v = v or (CCS.GetScale and CCS.GetScale() or 1.0)
+    local left, top = panel:GetLeft(), panel:GetTop()
+    if not (left and top) then panel:SetScale(v); return end
+    local sx = left * panel:GetEffectiveScale()
+    local sy = top  * panel:GetEffectiveScale()
+    panel:SetScale(v)
+    local newEff = panel:GetEffectiveScale()
+    panel:ClearAllPoints()
+    panel:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", sx / newEff, sy / newEff)
+end
+
+-- Reset the profile window to its default centered position and current scale.
+function CCS.ResetProfilesPosition()
+    if not panel then return end
+    -- Scale first, then set the anchor last so the position isn't re-derived
+    -- from a stale corner by the scale function.
+    panel:SetScale(CCS.GetScale and CCS.GetScale() or 1.0)
+    panel:ClearAllPoints()
+    panel:SetPoint("TOPLEFT", UIParent, "CENTER", -273, 220)
+end
+
 function CCS.ToggleProfiles()
     if not panel then build() end
     if panel:IsShown() then
         panel:Hide()
     else
+        CCS._applyProfilesScale(CCS.GetScale and CCS.GetScale() or 1.0)
         refreshProfileList()
         panel:Show()
     end
