@@ -85,6 +85,7 @@ local function CCS_GetOrCreatePopup()
     local thumb = track:CreateTexture(nil, "OVERLAY")
     thumb:SetColorTexture(0.5, 0.5, 0.5, 0.8)
     popup._thumb = thumb
+    popup._track = track
 
     local function UpdateThumb()
         local total   = popup._total or 0
@@ -226,15 +227,21 @@ local function CCS_GetOrCreatePopup()
         local prev = CreateFrame("Button", nil, row)
         prev:SetSize(PREV_W, ROW_H)
         prev:SetPoint("RIGHT", row, "RIGHT", -2, 0)
+        -- Green wash on the speaker itself while hovered.
         local prevHL = prev:CreateTexture(nil, "HIGHLIGHT")
-        prevHL:SetAllPoints(); prevHL:SetColorTexture(0.6, 0.8, 1, 0.15)
+        prevHL:SetAllPoints(); prevHL:SetColorTexture(0.4, 0.85, 0.4, 0.22)
+        -- The speaker is a child of the row, so hovering it doesn't fire the
+        -- row's own HIGHLIGHT. This ARTWORK texture, shown only while the
+        -- speaker is hovered, keeps the whole row lit to match.
+        local rowLit = row:CreateTexture(nil, "ARTWORK")
+        rowLit:SetAllPoints(); rowLit:SetColorTexture(1, 1, 1, 0.1); rowLit:Hide()
         local prevTex = prev:CreateTexture(nil, "ARTWORK")
         prevTex:SetSize(PREV_W - 6, PREV_W - 6)
         prevTex:SetPoint("CENTER")
-        prevTex:SetAtlas("common-icon-sound")
-        prevTex:SetVertexColor(0.6, 0.8, 1, 0.7)
-        prev:SetScript("OnEnter", function() prevTex:SetVertexColor(0.8, 1, 1, 1) end)
-        prev:SetScript("OnLeave", function() prevTex:SetVertexColor(0.6, 0.8, 1, 0.7) end)
+        prevTex:SetTexture(CCS.MEDIA_DIR .. "speaker")
+        prevTex:SetVertexColor(1, 1, 1, 0.7)
+        prev:SetScript("OnEnter", function() prevTex:SetVertexColor(1, 1, 1, 1); rowLit:Show() end)
+        prev:SetScript("OnLeave", function() prevTex:SetVertexColor(1, 1, 1, 0.7); rowLit:Hide() end)
         row._prev = prev
         row:Hide()
         popup._buttons[i] = row
@@ -315,6 +322,10 @@ local function CCS_CreateDropdown(parent, width, height, fontSize)
         local SCROLL_W = 14
         local SEARCH_H = 22
         local hasSearch = self._widePreview or self._wantSearch
+        -- Some dropdowns (output channel, profiles) have a handful of items and
+        -- look tidier with no scroll column at all. hasSearch always keeps it.
+        local noScroll  = self._noScroll and not hasSearch
+        local scrollW   = noScroll and 0 or SCROLL_W
 
         popup._owner    = self
         popup._allItems = self._items
@@ -323,6 +334,8 @@ local function CCS_CreateDropdown(parent, width, height, fontSize)
         popup._total    = #self._items
         popup._default  = self._defaultSound
 
+        popup._clipper:ClearAllPoints()
+        popup._clipper:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -(PAD + scrollW + (noScroll and 0 or 2)), PAD)
         if hasSearch then
             popup._searchBox:Show()
             popup._searchBox:SetText("")
@@ -331,10 +344,11 @@ local function CCS_CreateDropdown(parent, width, height, fontSize)
             popup._searchBox:Hide()
             popup._clipper:SetPoint("TOPLEFT", popup, "TOPLEFT", PAD, -PAD)
         end
+        popup._track:SetShown(not noScroll)
 
         local visible = math.min(#self._items, MAX_VISIBLE)
-        local pw = hasSearch and (math.max(width * 2, 260) + SCROLL_W + PAD)
-                             or  ((self._popupWidth or width or 110) + SCROLL_W + PAD)
+        local pw = hasSearch and (math.max(width * 2, 260) + scrollW + PAD)
+                             or  ((self._popupWidth or width or 110) + scrollW + PAD)
         local extraH = hasSearch and (SEARCH_H + 4) or 0
         popup:SetSize(pw, PAD*2 + visible*ROW_H + extraH)
         -- popup lives on UIParent, match owner's scale so it resizes with the window

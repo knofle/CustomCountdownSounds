@@ -132,6 +132,15 @@ local function withCombatGuard(fn)
     fn()
 end
 
+-- A sub-row's sound is registered as part of its parent ability's pass, so
+-- always refresh the parent. Refreshing the variant alone would register its
+-- sound against the apply trigger.
+local function refreshOwningAbility(a)
+    if not a then return end
+    local target = (a._event and a._parent) or a
+    CCS.RefreshAbility(target.key, target)
+end
+
 local function setButtonBg(btn, r, g, b)
     if not btn._bg then
         local tex = btn:CreateTexture(nil, "BACKGROUND")
@@ -254,6 +263,10 @@ local function addTooltip(frame, title, body, anchorLeft)
     end)
 end
 
+-- Exposed for custom_auras.lua, which builds a button in the same style.
+CCS._addTooltip        = addTooltip
+CCS._addBorderHighlight = addBorderHighlight
+
 
 local CATEGORY_NAME = "Custom Countdown Sounds"
 
@@ -318,16 +331,11 @@ local function shortCountdownLabel(key)
 end
 
 local function getDefaultWarn(ability)
-    local s = ability.soundH or ability.soundM
-    if not s then return nil end
-    if type(s) == "table" then return s[1] end
-    return s
+    return CCS.WarnDefault(ability)
 end
 
 local function getDefaultCountdown(ability, diff)
-    local s = diff == "M" and ability.soundM or (diff ~= "M" and ability.soundH)
-    if type(s) == "table" then return s[2] end
-    return nil
+    return CCS.CountdownDefault(ability, diff)
 end
 
 local function hasHeroic(ability) return ability.soundH ~= nil or CCS.GetCountdownOverride(ability.key, "H") ~= nil end
@@ -341,14 +349,23 @@ local RM_ICON_INDEX = {
     moon = 5, square = 6, cross = 7, skull = 8,
 }
 local function decorateSoundName(name)
-    local rest = name:match("^CCS:%s*(.+)$")
+    -- The registered name already carries the coloured "CCS:" tag; reduce to
+    -- the bare sound name and rebuild the label from it.
+    local rest = (CCS.BareSoundName and CCS.BareSoundName(name)) or name:match("^CCS:%s*(.+)$")
     if not rest then return name end
     local pretty = rest:sub(1, 1):upper() .. rest:sub(2)
+    -- Light-blue "CCS:" tag on every one of ours.
+    local tag = (CCS.TAG_COLOR or "|cff9fd6f5") .. "CCS:|r "
     local idx = RM_ICON_INDEX[rest:lower()]
     if idx then
-        return "CCS: RM " .. pretty .. RAID_ICON_TEX:format(idx)
+        return tag .. "RM " .. pretty .. RAID_ICON_TEX:format(idx)
     end
-    return "CCS: " .. pretty
+    -- Slight per-group tint on the name itself, if it belongs to a group.
+    local g = CCS.SOUND_GROUP_OF and CCS.SOUND_GROUP_OF[rest:lower()]
+    if g then
+        return tag .. g.color .. pretty .. "|r"
+    end
+    return tag .. pretty
 end
 
 local cachedSoundItems    = nil
@@ -366,16 +383,24 @@ local function getSoundItems()
         local list = {}
         for i = 1, #raw do list[i] = raw[i] end
         -- CCS non-RM first (alphabetical), then CCS RM (Skull → Star), then everything else.
+        -- Grouped CCS sounds first (in the order defined in sounds.lua, each
+        -- group's own order preserved), then ungrouped CCS sounds, then the
+        -- raid markers, then everything from other addons.
         local function sortKey(name)
-            local rest = name:match("^CCS:%s*(.+)$")
+            local rest = (CCS.BareSoundName and CCS.BareSoundName(name)) or name:match("^CCS:%s*(.+)$")
             if rest then
-                local idx = RM_ICON_INDEX[rest:lower()]
+                local low = rest:lower()
+                local idx = RM_ICON_INDEX[low]
                 if idx then
-                    return "1" .. string.format("%02d", 99 - idx)
+                    return "2" .. string.format("%02d", 99 - idx)
                 end
-                return "0" .. rest:lower()
+                local g = CCS.SOUND_GROUP_OF and CCS.SOUND_GROUP_OF[low]
+                if g then
+                    return "0" .. string.format("%02d%02d", g.group, g.order)
+                end
+                return "1" .. low
             end
-            return "2" .. name:lower()
+            return "3" .. name:lower()
         end
         table.sort(list, function(a, b) return sortKey(a) < sortKey(b) end)
         for _, name in ipairs(list) do
@@ -426,9 +451,7 @@ local function testAbility(ability, difficulty)
     end
     local anySoundPlayed = false
     if CCS.isWarnEnabled(ability.key) then
-        local warnSoundField = ability.soundH or ability.soundM
-        local defaultWarnKey = type(warnSoundField) == "table" and warnSoundField[1] or warnSoundField
-        local resolvedWarnKey = CCS.GetWarnOverride(ability.key) or defaultWarnKey
+        local resolvedWarnKey = CCS.GetWarnOverride(ability.key) or CCS.WarnDefault(ability)
         local warnSoundPath = CCS.ResolvePath and CCS.ResolvePath(resolvedWarnKey)
         if warnSoundPath then
             PlaySoundFile(warnSoundPath, CCS.GetChannel())
@@ -436,9 +459,7 @@ local function testAbility(ability, difficulty)
         end
     end
     if CCS.IsCDEnabled(ability.key, difficulty) then
-        local cdSoundField = difficulty == "M" and ability.soundM or ability.soundH
-        local defaultCDKey = type(cdSoundField) == "table" and cdSoundField[2] or nil
-        local resolvedCDKey = CCS.GetCountdownOverride(ability.key, difficulty) or defaultCDKey
+        local resolvedCDKey = CCS.GetCountdownOverride(ability.key, difficulty) or CCS.CountdownDefault(ability, difficulty)
         local cdSoundPath = resolvedCDKey and CCS.ResolvePath and CCS.ResolvePath(resolvedCDKey)
         if cdSoundPath then
             PlaySoundFile(cdSoundPath, CCS.GetChannel())
@@ -453,22 +474,65 @@ end
 
 
 local ROW_HEIGHT = 22
+CCS.ROW_HEIGHT = ROW_HEIGHT  -- custom_auras.lua sizes its button to match
 local DROPDOWN_HEIGHT       = 23  -- dropdown height, independent of ROW_HEIGHT
 local WARN_DROPDOWN_FONT_SIZE = 11  -- warning dropdown font size
 local COUNTDOWN_DROPDOWN_FONT_SIZE   = 13  -- countdown dropdown font size
 local SECTION_HEADER_H   = 24
 local HEADER_BAR_H = 62  -- height of the column header bar (Warning Sound / Countdown Timer)
 local BULK_BOX_H   = 38  -- height of the All Warnings / All Countdowns boxes
-local TOP_BLOCK_H  = 66  -- height of the top black block (addon name, description, buttons)
-local INDENT     = 12
+local TOP_BLOCK_H  = 66  -- top black block: addon name, output row, volume row, buttons
+-- Arrows live in their own gutter on the left; INDENT is where content
+-- (spell icons, boss names) starts, leaving a clear gap after the arrow.
+local ARROW_X    = 14   -- centre of the arrow column, from the row's left edge
+local INDENT     = 28
+-- Ability rows sit a step further in than their boss header, so the arrow and
+-- icon columns both shift by this much.
+local ROW_INDENT = 10
+-- The clickable area starts left of the arrow so the arrow itself can be
+-- clicked and is covered by the hover highlight.
+local HDR_LEFT     = ARROW_X - 8                    -- boss header frame edge
+local ROW_LBL_LEFT = ARROW_X + ROW_INDENT - 8       -- ability lblFrame edge
 local CHECKBOX_SIZE    = 18
 local WARN_DROPDOWN_W       = 110   -- warn dropdown width
 local COUNTDOWN_DROPDOWN_W       = 60    -- countdown dropdown width
-local ARROW_PATH = "Interface\\AddOns\\CustomCountdownSounds\\media\\"
+local ARROW_PATH = CCS.MEDIA_DIR
+
+--------------------------------------------------
+-- Drop shadow
+--------------------------------------------------
+-- A soft border texture drawn behind a frame in black reads as a shadow. Two
+-- details make it sit correctly: the backdrop is pushed outward by edgeSize/2
+-- so the falloff starts at the frame edge rather than overlapping the border,
+-- and it sits one frame level below its parent so it can never cover content.
+-- Needs media\shadow.tga, which must be a border (edgeFile) texture.
+local SHADOW_TEXTURE = ARROW_PATH .. "shadow"
+local SHADOW_SIZE    = 16    -- edgeSize; larger = wider, softer falloff
+local SHADOW_ALPHA   = 0.55  -- lower = subtler
+
+function CCS.AddShadow(frame, size, alpha)
+    if not frame or frame._shadow then return frame and frame._shadow end
+    size  = size  or SHADOW_SIZE
+    alpha = alpha or SHADOW_ALPHA
+    local s = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+    s:EnableMouse(false)
+    s:SetFrameLevel(math.max(0, frame:GetFrameLevel() - 1))
+    local o = size / 2
+    s:SetPoint("TOPLEFT",     frame, "TOPLEFT",     -o,  o)
+    s:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT",  o, -o)
+    s:SetBackdrop({ edgeFile = SHADOW_TEXTURE, edgeSize = size })
+    s:SetBackdropBorderColor(0, 0, 0, alpha)
+    -- The parent's level can be re-asserted after creation, so track it.
+    frame:HookScript("OnShow", function(self)
+        s:SetFrameLevel(math.max(0, self:GetFrameLevel() - 1))
+    end)
+    frame._shadow = s
+    return s
+end
 local LEFT_PANEL_FRACTION  = 0.58  -- wider left panel; right cell padding tightened to suit
 
 -- Column offsets
-local RIGHT_CELL_PAD      = 14
+local RIGHT_CELL_PAD      = 12
 local TEST_BTN_W          = 36   -- width of "Test" button
 local DIFF_LBL_W          = 20   -- width of "HC:" / "M:" labels
 
@@ -515,7 +579,7 @@ local RAID_ICONS = {
 -- Frame pool
 ------------------------------------------------------------
 
-local _pool = { rows={}, headers={}, raidBgs={}, seps={}, divider=nil }
+local _pool = { rows={}, headers={}, raidBgs={}, seps={}, sepShadows={}, divider=nil }
 
 -- Pick one spellID from any privateID shape, for icon/tooltip.
 local function getScalarID(pid)
@@ -611,22 +675,25 @@ local function acquireRow(scrollChild, idx)
 
     local icon = leftCell:CreateTexture(nil, "ARTWORK")
     icon:SetSize(18, 18)
-    icon:SetPoint("LEFT", leftCell, "LEFT", INDENT, 0)
+    icon:SetPoint("LEFT", leftCell, "LEFT", INDENT + ROW_INDENT, 0)
 
     local lblFrame = CreateFrame("Button", nil, leftCell)
-    lblFrame:SetPoint("LEFT",  leftCell, "LEFT", INDENT + 22, 0)
+    lblFrame:SetPoint("LEFT",  leftCell, "LEFT", ROW_LBL_LEFT, 0)
     lblFrame:SetPoint("RIGHT", warnCB,   "LEFT", -6, 0)
     lblFrame:SetHeight(ROW_HEIGHT)
     lblFrame:RegisterForClicks("LeftButtonUp")
     local lbl = makeFontString(lblFrame, "ARTWORK", "GameFontNormal")
-    lbl:SetAllPoints(); lbl:SetJustifyH("LEFT"); lbl:SetJustifyV("MIDDLE")
+    -- Inset past the arrow and icon, which the frame now reaches over.
+    lbl:SetPoint("LEFT",  lblFrame, "LEFT", (INDENT + ROW_INDENT + 22) - ROW_LBL_LEFT, 0)
+    lbl:SetPoint("RIGHT", lblFrame, "RIGHT", 0, 0)
+    lbl:SetJustifyH("LEFT"); lbl:SetJustifyV("MIDDLE")
     local lblHL = lblFrame:CreateTexture(nil, "HIGHLIGHT")
     lblHL:SetAllPoints(); lblHL:SetColorTexture(1, 1, 1, 0.05)
-    -- Expand arrow for the per-trigger sub-rows. lbl fills the frame, so this
-    -- is positioned off the measured text width in rebind rather than anchored
-    -- to the label's right edge.
+    -- Expand arrow for the per-trigger sub-rows, in the gutter left of the
+    -- spell icon so it lines up with the boss header arrows.
     local chevron = lblFrame:CreateTexture(nil, "ARTWORK")
     chevron:SetSize(8, 8)
+    chevron:SetPoint("CENTER", lblFrame, "LEFT", (ARROW_X + ROW_INDENT) - ROW_LBL_LEFT, 0)
     chevron:SetVertexColor(0.44, 0.44, 0.44, 1)
     chevron:Hide()
 
@@ -663,7 +730,7 @@ local function acquireRow(scrollChild, idx)
     -- "Set Default" button: resets this spell's ticks, warn sound and timers.
     -- Only shown when the spell carries a custom warn or countdown override.
     local resetBtn = CreateFrame("Button", nil, rightCell)
-    resetBtn:SetSize(64, ROW_HEIGHT)
+    resetBtn:SetSize(80, ROW_HEIGHT)
     local resetBg = resetBtn:CreateTexture(nil, "BACKGROUND")
     resetBg:SetAllPoints(); resetBg:SetColorTexture(0.06, 0.06, 0.06, 0.95)
     local resetBorder = CreateFrame("Frame", nil, resetBtn, "BackdropTemplate")
@@ -709,7 +776,16 @@ local function acquireRow(scrollChild, idx)
     -- Show "Set Default" only when a custom sound override exists.
     local function refreshResetBtn()
         local a = r._ability
-        resetBtn:SetShown(a ~= nil and hasOverride(a))
+        if not a then resetBtn:Hide(); return end
+        -- A user-added aura is removed from here instead. Sub-rows of one keep
+        -- the normal Set Default, since removal belongs on the parent row.
+        if a._custom then
+            resetFs:SetText("|cffff5555Remove Aura|r")
+            resetBtn:Show()
+        else
+            resetFs:SetText("|cffaaaaaaSet Default|r")
+            resetBtn:SetShown(hasOverride(a))
+        end
     end
     r.refreshResetBtn = refreshResetBtn
 
@@ -897,14 +973,17 @@ local function acquireRow(scrollChild, idx)
     -- keeps the six handlers from drifting apart.
     --   changedTick: a warn/countdown checkbox moved (may change visibility)
     local function afterChange(a, changedTick)
-        CCS.RefreshAbility(a.key, a)
+        refreshOwningAbility(a)
         r.syncFromDB()
         r.refreshCbBorders()
         refreshResetBtn()
         if changedTick and CCS._refreshBulkUnderlines then
             CCS._refreshBulkUnderlines()
         end
-        if changedTick then maybeRebuildForVisibility(a) end
+        -- A chosen sound keeps a row visible just as a tick does, so this has
+        -- to run for any change, not only tick changes. Clearing an override
+        -- via Set Default is exactly the case that would otherwise be missed.
+        maybeRebuildForVisibility(a)
         -- A trigger sub-row is on screen either because its spell is expanded
         -- or because it has a sound set. Once that sound is cleared, rebuild so
         -- the row goes away unless the spell is still expanded.
@@ -978,6 +1057,12 @@ local function acquireRow(scrollChild, idx)
     resetBtn:SetScript("OnClick", function()
         withCombatGuard(function()
             local a = r._ability; if not a then return end
+            if a._custom then
+                CCS.RemoveCustomAura(a._customBoss, a._customID)
+                CCS.RefreshSounds()
+                if CCS._fullRebuild then CCS._fullRebuild() end
+                return
+            end
             -- Clear the custom warn sound and timers, but leave the tick state
             -- alone. The ticks are what keep the row visible, so an opted-in
             -- advanced spell stays put on its own.
@@ -997,6 +1082,11 @@ local function acquireRow(scrollChild, idx)
     function r.rebind(ability, isMplus)
         r._ability = ability
         r._isMplus = isMplus
+        -- Rows are pooled, and only the branch matching the current module
+        -- reassigns these. Clear them so nothing can read a value left behind
+        -- by whatever ability this row held last.
+        r._cdDefaultCD, r._hDefaultCD, r._mDefaultCD = nil, nil, nil
+        r._cdOver,      r._hOver,      r._mOver      = nil, nil, nil
 
         local pid = ability.privateID
         local scalarID = getScalarID(pid)
@@ -1011,8 +1101,6 @@ local function acquireRow(scrollChild, idx)
         if not ability._event and CCS.GetExtraAuraTriggers() then
             local open = CCS.IsSpellExpanded(ability.key)
             chevron:SetTexture(ARROW_PATH .. (open and "down_arrow" or "right_arrow"))
-            chevron:ClearAllPoints()
-            chevron:SetPoint("LEFT", lblFrame, "LEFT", (lbl:GetStringWidth() or 0) + 6, 0)
             chevron:Show()
         else
             chevron:Hide()
@@ -1029,6 +1117,12 @@ local function acquireRow(scrollChild, idx)
         warnDD:SetValue(CCS.GetWarnOverride(ability.key) or "__default__")
         local warnEn = CCS.isWarnEnabled(ability.key)
         warnCB:SetChecked(warnEn)
+        -- Pooled rows share one tickbox, so point its tooltip at whichever
+        -- trigger this binding represents. The apply case must be restored
+        -- explicitly or a recycled sub-row would keep the sub-row wording.
+        local ev = ability._event or "apply"
+        warnCB._ccsTipTitle = (ev == "apply") and "Warning Sound" or CCS.EVENT_LABEL[ev]
+        warnCB._ccsTipBody  = CCS.EVENT_TIP[ev]
         refreshWarnDD()
 
         if isMplus then
@@ -1102,15 +1196,21 @@ local function acquireRow(scrollChild, idx)
         -- set a non-default value on (a warn or countdown override).
         r.refreshCbBorders()
         refreshResetBtn()
+        -- Last, once every default and override above is in place. The earlier
+        -- calls from the refresh helpers run too soon, and the countdown ones
+        -- return early on sub-rows, so a pooled row would otherwise keep the
+        -- previous ability's button state.
+        refreshTestBtn()
     end
 
     -- Recolour the tickbox borders: green for advanced abilities or any box
     -- carrying a user override. Called on rebind and whenever an override changes.
     function r.refreshCbBorders()
         local a = r._ability; if not a then return end
-        -- Stack/remove sub-rows are non-default by nature, so they carry the
-        -- same green marker advanced abilities get.
-        local adv = a.advanced == true or a._event ~= nil
+        -- Green marks a non-default row. A trigger that ships with a sound is
+        -- a default one, like any ability with a built-in sound; a trigger
+        -- with no default is an extra and gets the marker.
+        local adv = a.advanced == true or (a._event ~= nil and a.soundM == nil)
         setAdvancedCbBorder(warnCB, adv or (CCS.GetWarnOverride(a.key) ~= nil))
         if r._isMplus then
             setAdvancedCbBorder(cdCB, adv or (r._cdOver ~= nil))
@@ -1144,7 +1244,7 @@ local function acquireRow(scrollChild, idx)
         setEnabled = function(en)
             local a = r._ability; if not a then return end
             CCS.SetWarnEnabled(a.key, en); warnCB:SetChecked(en)
-            CCS.RefreshAbility(a.key, a); refreshWarnDD()
+            refreshOwningAbility(a); refreshWarnDD()
         end,
     }
     r._cdCtrl = {
@@ -1153,7 +1253,7 @@ local function acquireRow(scrollChild, idx)
         setEnabled = function(en)
             local a = r._ability; if not a then return end
             CCS.SetCDEnabled(a.key, "M", en); cdCB:SetChecked(en)
-            CCS.RefreshAbility(a.key, a); refreshCdDD()
+            refreshOwningAbility(a); refreshCdDD()
         end,
     }
     r._hCtrl = {
@@ -1162,7 +1262,7 @@ local function acquireRow(scrollChild, idx)
         setEnabled = function(en)
             local a = r._ability; if not a then return end
             CCS.SetCDEnabled(a.key, "H", en); hCB:SetChecked(en)
-            CCS.RefreshAbility(a.key, a); refreshHDD()
+            refreshOwningAbility(a); refreshHDD()
         end,
     }
     r._mCtrl = {
@@ -1171,7 +1271,7 @@ local function acquireRow(scrollChild, idx)
         setEnabled = function(en)
             local a = r._ability; if not a then return end
             CCS.SetCDEnabled(a.key, "M", en); mCB:SetChecked(en)
-            CCS.RefreshAbility(a.key, a); refreshMDD()
+            refreshOwningAbility(a); refreshMDD()
         end,
     }
 
@@ -1183,13 +1283,13 @@ local function acquireHeader(scrollChild, idx)
     if not _pool.headers[idx] then
         local frame = CreateFrame("Frame", nil, scrollChild)
         local lbl = makeFontString(frame, "ARTWORK", "GameFontHighlightLarge")
-        lbl:SetPoint("LEFT", frame, "LEFT", 0, 0)
+        lbl:SetPoint("LEFT", frame, "LEFT", INDENT - HDR_LEFT, 0)
         frame._lbl = lbl
         -- Expand arrow, sits just after the boss name. White with alpha, so it
         -- can be tinted to whatever colour the boss uses.
         local arrow = frame:CreateTexture(nil, "ARTWORK")
         arrow:SetSize(10, 10)
-        arrow:SetPoint("LEFT", lbl, "RIGHT", 5, 0)
+        arrow:SetPoint("CENTER", frame, "LEFT", ARROW_X - HDR_LEFT, 0)
         arrow:Hide()
         frame._arrow = arrow
         -- hover highlight, same as the ability rows
@@ -1223,6 +1323,67 @@ local function acquireSep(scrollChild, idx)
         _pool.seps[idx] = s
     end
     return _pool.seps[idx]
+end
+
+-- A soft downward shadow beneath a separator line: a short vertical gradient,
+-- slightly darker at the top and fading to transparent so it blends into
+-- whatever background sits below. No texture file; pooled per sep index.
+local SEP_SHADOW_H     = 20     -- how far the fade reaches down
+local SEP_SHADOW_ALPHA = 0.08   -- darkness at the top of the fade
+-- Apply the vertical fade in the requested direction. Set every call, not just
+-- on creation, because a pooled strip can switch direction between rebuilds as
+-- indices shift.
+local function setSepGradient(sh, dir)
+    local clear = CreateColor(0, 0, 0, 0)
+    local dark  = CreateColor(0, 0, 0, SEP_SHADOW_ALPHA)
+    if sh.SetGradient then
+        -- SetGradient takes (min=bottom, max=top).
+        if dir == "down" then
+            sh:SetGradient("VERTICAL", clear, dark)   -- dark top, clear bottom
+        else
+            sh:SetGradient("VERTICAL", dark, clear)   -- dark bottom, clear top
+        end
+    else
+        if dir == "down" then
+            sh:SetGradientAlpha("VERTICAL", 0,0,0,0, 0,0,0,SEP_SHADOW_ALPHA)
+        else
+            sh:SetGradientAlpha("VERTICAL", 0,0,0,SEP_SHADOW_ALPHA, 0,0,0,0)
+        end
+    end
+end
+
+local function acquireSepStrip(scrollChild, idx)
+    local sh = _pool.sepShadows[idx]
+    if not sh then
+        -- BORDER sits just above BACKGROUND (the sep line), so the fade tucks
+        -- against the line without covering row backgrounds.
+        sh = scrollChild:CreateTexture(nil, "BORDER")
+        sh:SetColorTexture(1, 1, 1, 1)   -- gradient supplies the real colour/alpha
+        _pool.sepShadows[idx] = sh
+    end
+    sh:SetHeight(SEP_SHADOW_H)
+    sh:ClearAllPoints()
+    return sh
+end
+
+-- Downward fade below a line: dark at the top edge (y), clear below.
+local function acquireSepShadow(scrollChild, idx, y, totalWidth)
+    local sh = acquireSepStrip(scrollChild, idx)
+    setSepGradient(sh, "down")
+    sh:SetPoint("TOPLEFT",  scrollChild, "TOPLEFT", 0,          y)
+    sh:SetPoint("TOPRIGHT", scrollChild, "TOPLEFT", totalWidth, y)
+    sh:Show()
+    return sh
+end
+
+-- Upward fade above a line: dark at the bottom edge (yBottom), clear above.
+local function acquireSepShadowUp(scrollChild, idx, yBottom, totalWidth)
+    local sh = acquireSepStrip(scrollChild, idx)
+    setSepGradient(sh, "up")
+    sh:SetPoint("BOTTOMLEFT",  scrollChild, "TOPLEFT", 0,          yBottom)
+    sh:SetPoint("BOTTOMRIGHT", scrollChild, "TOPLEFT", totalWidth, yBottom)
+    sh:Show()
+    return sh
 end
 
 local function acquireDivider(scrollChild)
@@ -1292,6 +1453,7 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
     local hdrIdx   = 0
     local raidIdx  = 0
     local sepIdx   = 0
+    local addIdx   = 0
     local lastRaid = nil
     local divTopY  = nil
 
@@ -1303,8 +1465,7 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
     end
     -- True if the query matches the boss/section name (color codes stripped).
     local function bossMatches(entry)
-        local name = entry.boss or entry.section or ""
-        name = name:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+        local name = CCS.StripColor(entry.boss or entry.section or "")
         return name:lower():find(searchQuery, 1, true) ~= nil
     end
     -- An entry is shown when filtering if its boss name matches (whole section)
@@ -1336,7 +1497,12 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
             s1:ClearAllPoints()
             s1:SetPoint("TOPLEFT",  scrollChild, "TOPLEFT", 0,          y)
             s1:SetPoint("TOPRIGHT", scrollChild, "TOPLEFT", totalWidth, y)
-            s1:Show(); y = y - 1
+            s1:Show()
+            y = y - 1
+
+            -- Upward fade above the header, darkest at the header's top edge and
+            -- fading up, so the header pops out of the space above it.
+            acquireSepShadowUp(scrollChild, sepIdx, y, totalWidth)
 
             raidIdx = raidIdx + 1
             local bg = acquireRaidBg(scrollChild, raidIdx)
@@ -1354,6 +1520,7 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
             s2:SetPoint("TOPLEFT",  scrollChild, "TOPLEFT", 0,          y)
             s2:SetPoint("TOPRIGHT", scrollChild, "TOPLEFT", totalWidth, y)
             s2:Show()
+            acquireSepShadow(scrollChild, sepIdx, y - 1, totalWidth)
             if not divTopY then divTopY = y - 1 end
             y = y - 8
         end
@@ -1365,21 +1532,26 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
             sep:ClearAllPoints()
             sep:SetPoint("TOPLEFT",  scrollChild, "TOPLEFT", 0,          y)
             sep:SetPoint("TOPRIGHT", scrollChild, "TOPLEFT", totalWidth, y)
-            sep:Show(); y = y - 6
+            sep:Show()
+            acquireSepShadow(scrollChild, sepIdx, y - 1, totalWidth)
+            y = y - 6
         end
 
         hdrIdx = hdrIdx + 1
         local hdr = acquireHeader(scrollChild, hdrIdx)
         hdr:ClearAllPoints()
-        hdr:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", INDENT, y)
+        hdr:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", HDR_LEFT, y)
         -- stop the highlight and click area at the middle divider
-        hdr:SetSize(math.max(1, leftW - INDENT), SECTION_HEADER_H)
+        hdr:SetSize(math.max(1, leftW - HDR_LEFT), SECTION_HEADER_H)
 
         local bossKey = entry.bossKey
         local hasAdvanced = false
         for _, ab in ipairs(entry.abilities) do
             if ab.advanced then hasAdvanced = true; break end
         end
+        -- Expanding also reveals the Add Aura button, so a real boss is always
+        -- worth opening even when every one of its abilities is a default.
+        if bossKey then hasAdvanced = true end
         local showAll = not bossKey or CCS.GetShowAllBoss(bossKey)
 
         local sectionText = entry.section or entry.boss
@@ -1466,55 +1638,61 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
                           or showAll
                           or CCS.IsAbilityOptedIn(ability.key)
             end
-            if not visible then
-                -- hidden
-            else
-            rowIdx = rowIdx + 1
-            local r = acquireRow(scrollChild, rowIdx)
+            if visible then
+                rowIdx = rowIdx + 1
+                local r = acquireRow(scrollChild, rowIdx)
 
-            r.leftCell:SetSize(leftW, ROW_HEIGHT)
-            r.leftCell:ClearAllPoints()
-            r.leftCell:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0,     y)
-            r.rightCell:SetSize(rightW, ROW_HEIGHT)
-            r.rightCell:ClearAllPoints()
-            r.rightCell:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", leftW, y)
-            r.rebind(ability, isMplus)
-            r.leftCell:Show(); r.rightCell:Show()
+                r.leftCell:SetSize(leftW, ROW_HEIGHT)
+                r.leftCell:ClearAllPoints()
+                r.leftCell:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0,     y)
+                r.rightCell:SetSize(rightW, ROW_HEIGHT)
+                r.rightCell:ClearAllPoints()
+                r.rightCell:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", leftW, y)
+                r.rebind(ability, isMplus)
+                r.leftCell:Show(); r.rightCell:Show()
 
-            y = y - ROW_HEIGHT - 1
+                y = y - ROW_HEIGHT - 1
 
-            -- Sub-rows per extra aura trigger. Same spell, its own storage key,
-            -- so each gets an independent warning sound. Shown when the spell is
-            -- expanded, and also whenever a trigger already has a sound set, so
-            -- an imported profile's settings are never active but hidden.
-            if CCS.SupportsAuraTriggers() then
-                local expanded = CCS.GetExtraAuraTriggers()
-                                 and CCS.IsSpellExpanded(ability.key)
-                for _, event in ipairs({ "stack", "remove" }) do
-                    local vKey = ability.key .. CCS.EVENT_SUFFIX[event]
-                    if expanded or CCS.HasTriggerConfig(vKey) then
-                    rowIdx = rowIdx + 1
-                    local vr = acquireRow(scrollChild, rowIdx)
-                    local vAbility = CCS.MakeEventAbility(ability, event)
-                    -- The parent row already names the spell, so a sub-row only
-                    -- needs to say which trigger it is.
-                    vAbility.label = "   |cff808080-|r |cff80d0ff"
-                                     .. CCS.EVENT_LABEL[event] .. "|r"
-                    vr.leftCell:SetSize(leftW, ROW_HEIGHT)
-                    vr.leftCell:ClearAllPoints()
-                    vr.leftCell:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0,     y)
-                    vr.rightCell:SetSize(rightW, ROW_HEIGHT)
-                    vr.rightCell:ClearAllPoints()
-                    vr.rightCell:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", leftW, y)
-                    vr.rebind(vAbility, isMplus)
-                    -- Right cell stays shown so Set Default is available; its
-                    -- countdown controls suppress themselves for variant rows.
-                    vr.leftCell:Show(); vr.rightCell:Show()
-                    y = y - ROW_HEIGHT - 1
+                -- One sub-row per extra aura trigger: the same spell, under its own
+                -- storage key, so each carries an independent warning sound.
+                if CCS.SupportsAuraTriggers() then
+                    for _, event in ipairs(CCS.EXTRA_EVENTS) do
+                        if CCS.ShouldShowTrigger(ability, event) then
+                            rowIdx = rowIdx + 1
+                            local vr = acquireRow(scrollChild, rowIdx)
+                            local vAbility = CCS.MakeEventAbility(ability, event)
+                            -- The parent row already names the spell, so a sub-row
+                            -- only needs to say which trigger it is.
+                            vAbility.label = "   |cff808080-|r "
+                                             .. (CCS.EVENT_COLOR[event] or "|cff80d0ff")
+                                             .. CCS.EVENT_LABEL[event] .. "|r"
+                            vr.leftCell:SetSize(leftW, ROW_HEIGHT)
+                            vr.leftCell:ClearAllPoints()
+                            vr.leftCell:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, y)
+                            vr.rightCell:SetSize(rightW, ROW_HEIGHT)
+                            vr.rightCell:ClearAllPoints()
+                            vr.rightCell:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", leftW, y)
+                            vr.rebind(vAbility, isMplus)
+                            -- Right cell stays shown so Set Default is reachable;
+                            -- its countdown controls hide themselves on sub-rows.
+                            vr.leftCell:Show(); vr.rightCell:Show()
+                            y = y - ROW_HEIGHT - 1
+                        end
                     end
                 end
             end
-            end
+        end
+
+        -- Add Aura sits under the last ability, only while this boss's
+        -- non-default abilities are on show, and never mid-search.
+        if bossKey and showAll and not filtering and CCS.AcquireAddAuraButton then
+            addIdx = addIdx + 1
+            local addBtn = CCS.AcquireAddAuraButton(scrollChild, addIdx)
+            addBtn._bossKey = bossKey
+            addBtn:ClearAllPoints()
+            addBtn:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", INDENT + ROW_INDENT, y)
+            addBtn:Show()
+            y = y - ROW_HEIGHT - 1
         end
 
         y = y - 8
@@ -1527,6 +1705,8 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
     for i = hdrIdx + 1, #_pool.headers do _pool.headers[i]:Hide() end
     for i = raidIdx + 1, #_pool.raidBgs do _pool.raidBgs[i]:Hide() end
     for i = sepIdx  + 1, #_pool.seps   do _pool.seps[i]:Hide() end
+    for i = sepIdx  + 1, #_pool.sepShadows do _pool.sepShadows[i]:Hide() end
+    if CCS.HideAddAuraButtonsFrom then CCS.HideAddAuraButtonsFrom(addIdx + 1) end
 
     local contentH = math.abs(y) + 16
     scrollChild:SetHeight(contentH)
@@ -1537,11 +1717,105 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
     local visibleH = scrollChild:GetParent() and scrollChild:GetParent():GetHeight() or 0
     divider:SetHeight(math.max(contentH, visibleH) - math.abs(topY))
     divider:Show()
+
+    -- Content height is now final, so refresh the thumb. The deferred call
+    -- catches the settled scroll range a frame later.
+    if CCS._updateScrollBar then
+        CCS._updateScrollBar()
+        C_Timer.After(0, CCS._updateScrollBar)
+    end
 end
 
 ------------------------------------------------------------
 -- Options Panel
 ------------------------------------------------------------
+
+-- A compact horizontal slider matching the scale slider's look. Reusable so the
+-- volume control doesn't duplicate it. opts:
+--   width, min, max, step, thumbW
+--   get()          -> current value (called on refresh/sync)
+--   onChange(v, done)  live drag sends done=false; release sends done=true
+--   format(v)      -> thumb text
+local function makeMiniSlider(parent, opts)
+    local INSET  = 2
+    local TW     = opts.thumbW or 40
+    local minV, maxV, step = opts.min, opts.max, opts.step
+
+    local s = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    s:SetSize(opts.width or 110, opts.height or 18)
+    s:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
+    s:SetBackdropColor(0.05, 0.05, 0.05, 1)
+    s:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+    s:EnableMouse(true)
+
+    local thumb = CreateFrame("Frame", nil, s, "BackdropTemplate")
+    thumb:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
+    thumb:SetBackdropColor(0.22, 0.22, 0.22, 1)
+    thumb:SetBackdropBorderColor(0.45, 0.45, 0.45, 1)
+    thumb:EnableMouse(false)
+    local text = makeFontString(thumb, "OVERLAY", "GameFontHighlightSmall")
+    text:SetPoint("CENTER", thumb, "CENTER", 0, 0)
+
+    s._value = opts.get and opts.get() or minV
+    local function clampStep(v)
+        v = minV + math.floor((v - minV) / step + 0.5) * step
+        return math.max(minV, math.min(maxV, v))
+    end
+    local function refresh()
+        local w = s:GetWidth() or 0
+        local travel = math.max(0, w - 2 * INSET - TW)
+        local frac = (maxV > minV) and (s._value - minV) / (maxV - minV) or 0
+        thumb:SetSize(TW, (s:GetHeight() or 18) - 2 * INSET)
+        thumb:ClearAllPoints()
+        thumb:SetPoint("TOPLEFT", s, "TOPLEFT", INSET + travel * frac, -INSET)
+        text:SetText(opts.format and opts.format(s._value) or tostring(s._value))
+    end
+    local function valueFromCursor()
+        local left = s:GetLeft(); if not left then return s._value end
+        local x = GetCursorPosition() / s:GetEffectiveScale()
+        local w = s:GetWidth(); if not w or w <= 0 then w = 1 end
+        local travel = math.max(1, w - 2 * INSET - TW)
+        local frac = (x - left - INSET - TW / 2) / travel
+        return clampStep(minV + math.max(0, math.min(1, frac)) * (maxV - minV))
+    end
+
+    local dragging = false
+    s:SetScript("OnMouseDown", function(self, btn)
+        if btn ~= "LeftButton" or s._locked then return end
+        dragging = true
+        s._value = valueFromCursor(); refresh()
+        if opts.onChange then opts.onChange(s._value, false) end
+        self:SetScript("OnUpdate", function()
+            s._value = valueFromCursor(); refresh()
+            if opts.onChange then opts.onChange(s._value, false) end
+        end)
+    end)
+    s:SetScript("OnMouseUp", function(self)
+        if not dragging then return end
+        dragging = false
+        self:SetScript("OnUpdate", nil)
+        if opts.onChange then opts.onChange(s._value, true) end
+    end)
+    s:SetScript("OnSizeChanged", refresh)
+
+    s.refresh = refresh
+    function s:SyncValue()
+        if opts.get then s._value = opts.get() end
+        refresh()
+    end
+    -- Greyed / non-interactive state.
+    function s:SetLocked(locked)
+        s._locked = locked
+        local a = locked and 0.35 or 1
+        thumb:SetBackdropColor(0.22, 0.22, 0.22, a)
+        thumb:SetBackdropBorderColor(0.45, 0.45, 0.45, a)
+        text:SetAlpha(a)
+        s:SetBackdropBorderColor(0.3, 0.3, 0.3, locked and 0.5 or 1)
+    end
+
+    refresh()
+    return s
+end
 
 local function BuildCCSOptions(panel, isStandalone)
     -- Forward declarations
@@ -1557,7 +1831,7 @@ local function BuildCCSOptions(panel, isStandalone)
     topBlockBg:SetColorTexture(0.078, 0.078, 0.078, 1)
 
     local title = makeFontString(topBlock, "ARTWORK", "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", 16, -12)
+    title:SetPoint("TOPLEFT", 16, -8)
     title:SetText(CATEGORY_NAME)
 
     local loadDefaultsBtn = CreateFrame("Button", nil, topBlock, "UIPanelButtonTemplate")
@@ -1663,27 +1937,25 @@ local function BuildCCSOptions(panel, isStandalone)
     helpText:SetSpacing(3)
     helpText:SetText(table.concat({
         "|cffFFD100What this addon does|r",
-        "It plays a sound when a boss ability lands on you, and can also play a spoken countdown as the effect is about to expire. This helps you react without staring at your debuffs.",
+        "It plays a sound when a debuff is applied on your character, and can also play a spoken countdown as the effect is about to expire.",
         " ",
-        "|cffFFD100The two columns|r",
-        "Each ability has two independent halves.",
-        "|cff80d0ffWarning|r (left): a sound the moment the aura is applied to you.",
-        "|cff80d0ffCountdown|r (right): a spoken timer as it runs out.",
+        "|cffFFD100Left side and Right side|r",
+        "|cff80d0ffWarning|r (left): plays the sound in the dropdown box when the debuff is applied to you.",
+        "|cff80d0ffCountdown|r (right): plays a spoken timer as it runs out.",
         "Tick either, both, or neither. They don't depend on each other. Click the |cffccccccTest|r button to preview what sounds will play in a Mythic encounter.",
         " ",
-        "|cffFFD100Raid vs Mythic+|r",
-        "Use the |cffccccccModule|r buttons to switch between raid and Mythic+ data. In raid, abilities have separate countdown boxes for Heroic (HC) and Mythic (M) difficulty, since durations sometimes differ. Mythic+ only uses one tickbox.",
+        "|cffFFD100Module: Raid vs Mythic+|r",
+        "Use the |cffccccccModule|r buttons to switch between raid and Mythic+ data. In raid, abilities have separate countdown boxes for Heroic (HC) and Mythic (M) difficulty, since debuff durations sometimes differ.",
         " ",
-        "|cffFFD100The ability list|r",
-        "Most bosses already come with sensible defaults. You just need to enable them by ticking the boxes, and you can pick a different sound in the dropdown next to each one.",
-        "Extra abilities that don't have a default are hidden to keep the list clean. |cff80d0ffClick a boss name|r to show or hide them. A small |cffffffff v |r means it can be expanded, |cffffffff ^ |r means it's open.",
+        "|cffFFD100The Boss Ability List|r",
+        "Most bosses already come with some defaults. You just need to enable them by ticking the boxes, and you can pick a different sound in the dropdown next to each one.",
+        "Extra abilities that don't have default sounds are hidden to keep the list clean. |cff80d0ffClick a boss name|r to show or hide them. ",
         " ",
         "|cffFFD100Profiles|r",
         "Use |cffccccccProfiles|r to keep different setups (e.g. one per character or per role). You can also export a profile as a string to share it with someone else. |cffccccccDefaults|r resets your current profile back to the built-in settings.",
         " ",
         "|cffFFD100Advanced|r",
-        "|cff80d0ffManual Timers|r lets you override a countdown's duration if a timer is ever wrong, and add countdowns to abilities that don't have one.",
-        "|cff80d0ffExtra aura triggers|r lets an ability also play a sound when it gains a stack or drops off, not just when it lands. Tick it, then click a spell name to open its triggers.",
+        "|cff80d0ffManual Timers|r lets you override a countdown's duration if a timer is ever wrong, and add countdowns to abilities that don't have a default one.",
         " ",
         "|cffFFD100Tips|r",
         "|cff80d0ffRight-click a boss name|r to open the Dungeon Journal to that boss.",
@@ -1754,8 +2026,8 @@ local function BuildCCSOptions(panel, isStandalone)
 
     -- Output channel dropdown (below the title) + scale slider (next to title).
     local settingsBox = CreateFrame("Frame", nil, topBlock)
-    settingsBox:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
-    settingsBox:SetSize(410, 24)
+    settingsBox:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, 8)
+    settingsBox:SetSize(410, 46)   -- two rows: output controls, then volume
 
     local chanLbl = makeFontString(settingsBox, "ARTWORK", "GameFontNormalSmall")
     chanLbl:SetText("|cffccccccSound output|r")
@@ -1769,111 +2041,136 @@ local function BuildCCSOptions(panel, isStandalone)
         { label = "Dialog",   value = "Dialog"   },
     }
     local chanDD = CCS_CreateDropdown(settingsBox, 90, 20, 11)
-    chanDD._noGreen = true
+    chanDD._noGreen  = true
+    chanDD._noScroll = true
     chanDD:SetPoint("LEFT", chanLbl, "RIGHT", 6, 0)
     chanDD:SetItems(CHANNEL_ITEMS)
     chanDD:SetValue(CCS.GetChannel())
+    -- Live control of the chosen channel: an ON/OFF toggle and a volume slider,
+    -- both driving WoW's own sound CVars so they mirror the audio panel.
+    local _suppressCVarRefresh = false  -- our own SetCVar fires CVAR_UPDATE; ignore it
+
+    local chanToggle = CreateFrame("Button", nil, settingsBox, "BackdropTemplate")
+    chanToggle:SetSize(34, 20)
+    chanToggle:SetPoint("LEFT", chanDD, "RIGHT", 2, 0)
+    chanToggle:SetBackdrop({ edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
+    chanToggle:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)  -- set live in refreshChanStatus
+    local toggleBg = chanToggle:CreateTexture(nil, "BACKGROUND")
+    toggleBg:SetAllPoints(); toggleBg:SetColorTexture(0.06, 0.06, 0.06, 0.95)
+    local toggleFs = makeFontString(chanToggle, "OVERLAY", "GameFontNormalSmall")
+    toggleFs:SetAllPoints(); toggleFs:SetJustifyH("CENTER"); toggleFs:SetJustifyV("MIDDLE")
+
+    local volSlider, volPct  -- forward refs for the refresh closure
+
+    local function refreshChanStatus()
+        local enabled, pct = CCS.GetChannelStatus(CCS.GetChannel())
+        toggleFs:SetText(enabled and "|cff66cc66ON|r" or "|cffcc6666OFF|r")
+        -- Border matches the dropdown's when on, desaturated/dim when off.
+        if enabled then
+            chanToggle:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+        else
+            chanToggle:SetBackdropBorderColor(0.22, 0.22, 0.22, 1)
+        end
+        if volSlider then
+            volSlider:SyncValue()
+            -- Greyed and non-interactive while the channel is off.
+            volSlider:SetLocked(not enabled)
+        end
+        if volPct then
+            volPct:SetText(pct .. "%")
+            volPct:SetAlpha(enabled and 1 or 0.35)
+        end
+    end
+    CCS._refreshChanStatus = refreshChanStatus
+
+    -- Master's off-switch silences everything, so toggling a non-master channel
+    -- while master is off would look like it did nothing. Toggle reflects the
+    -- channel's own switch; status still folds in master for the ON/OFF text.
+    chanToggle:SetScript("OnClick", function()
+        withCombatGuard(function()
+            local ch = CCS.GetChannel()
+            local enabled = CCS.GetChannelStatus(ch)
+            _suppressCVarRefresh = true
+            CCS.SetChannelEnabled(ch, not enabled)
+            _suppressCVarRefresh = false
+            refreshChanStatus()
+        end)
+    end)
+    addTooltip(chanToggle, "Channel on/off",
+        "Toggle this output channel's sound. Uses WoW's own audio setting.")
+
+    -- Volume on its own line below. The percentage sits to the slider's left,
+    -- and the slider's right edge lines up with where the ON toggle ends above.
+    volPct = makeFontString(settingsBox, "ARTWORK", "GameFontNormalSmall")
+    volPct:SetPoint("BOTTOMLEFT", settingsBox, "BOTTOMLEFT", 0, 2)
+    volPct:SetJustifyH("LEFT")
+    volPct:SetWidth(34)
+
+    volSlider = makeMiniSlider(settingsBox, {
+        width = 110, height = 12, min = 0, max = 1, step = 0.05, thumbW = 40,
+        get    = function() local _, p = CCS.GetChannelStatus(CCS.GetChannel()); return p / 100 end,
+        format = function() return "" end,   -- % shown to the left, not in the thumb
+        onChange = function(v)
+            _suppressCVarRefresh = true
+            CCS.SetChannelVolume(CCS.GetChannel(), v)
+            _suppressCVarRefresh = false
+            volPct:SetText(("%d%%"):format(math.floor(v * 100 + 0.5)))
+        end,
+    })
+    volSlider:ClearAllPoints()
+    volSlider:SetPoint("LEFT", volPct, "RIGHT", 4, 0)
+    volSlider:SetPoint("RIGHT", chanToggle, "RIGHT", 0, 0)  -- align with ON's right edge
+    volSlider:SetPoint("BOTTOM", settingsBox, "BOTTOM", 0, 0)
+    addTooltip(volSlider, "Channel volume",
+        "This changes the value of your active WoW audio channel.")
+    refreshChanStatus()
+
     chanDD:SetOnSelect(function(v)
         withCombatGuard(function()
             CCS.SetChannel(v)
             CCS.RefreshSounds()  -- re-register through the new channel
+            refreshChanStatus()
         end)
     end)
     addTooltip(chanDD, "Sound output channel",
         "Which volume slider these sounds follow. 'Effects' uses your Sound Effects volume; the rest match their name.")
 
-    local scaleSlider, scaleValue
+    -- Track the panel's own audio sliders/toggles live, but skip the echo from
+    -- our own SetCVar calls (which would fight a live drag).
+    settingsBox:RegisterEvent("CVAR_UPDATE")
+    settingsBox:HookScript("OnEvent", function(_, evt)
+        if evt == "CVAR_UPDATE" and not _suppressCVarRefresh then refreshChanStatus() end
+    end)
+
+    local scaleSlider
     if isStandalone then
         local scaleLbl = makeFontString(topBlock, "ARTWORK", "GameFontNormalSmall")
         scaleLbl:SetText("|cffccccccScale|r")
-        scaleLbl:SetPoint("LEFT", title, "RIGHT", 20, 0)
+        -- Right-oriented up top, tucked just left of Help so it reads as window
+        -- chrome and isn't confused with the sound-volume slider below.
 
-        local minV, maxV, step = 0.75, 2.0, 0.05
-        local TW, INSET = 46, 2
-
-        local s = CreateFrame("Frame", nil, topBlock, "BackdropTemplate")
-        s:SetSize(120, 18)
-        s:SetPoint("TOPLEFT", scaleLbl, "TOPRIGHT", 8, 2)
-        s:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
-        s:SetBackdropColor(0.05, 0.05, 0.05, 1)
-        s:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
-        s:EnableMouse(true)
-
-        local thumb = CreateFrame("Frame", nil, s, "BackdropTemplate")
-        thumb:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
-        thumb:SetBackdropColor(0.22, 0.22, 0.22, 1)
-        thumb:SetBackdropBorderColor(0.45, 0.45, 0.45, 1)
-
-        local text = makeFontString(thumb, "OVERLAY", "GameFontHighlightSmall")
-        text:SetPoint("CENTER", thumb, "CENTER", 0, 0)
-
-        s._value = CCS.GetScale()
-        local function clampStep(v)
-            v = minV + math.floor((v - minV) / step + 0.5) * step
-            return math.max(minV, math.min(maxV, v))
-        end
-        local function refresh()
-            local w = s:GetWidth() or 0
-            local travel = math.max(0, w - 2 * INSET - TW)
-            local frac = (s._value - minV) / (maxV - minV)
-            thumb:SetSize(TW, (s:GetHeight() or 18) - 2 * INSET)
-            thumb:ClearAllPoints()
-            thumb:SetPoint("TOPLEFT", s, "TOPLEFT", INSET + travel * frac, -INSET)
-            text:SetText(("%d%%"):format(math.floor(s._value * 100 + 0.5)))
-        end
-
-        local function valueFromCursor()
-            local left = s:GetLeft(); if not left then return s._value end
-            local x = GetCursorPosition() / s:GetEffectiveScale()
-            local w = s:GetWidth(); if not w or w <= 0 then w = 1 end
-            local travel = math.max(1, w - 2 * INSET - TW)
-            local frac = (x - left - INSET - TW / 2) / travel
-            return clampStep(minV + math.max(0, math.min(1, frac)) * (maxV - minV))
-        end
-
-        local dragging = false
-        -- Preview the thumb + % while dragging, but don't apply the scale
-        -- (SetScale) until the mouse is released.
-        local function preview(v)
-            s._value = v
-            refresh()
-        end
-        local function commit(v)
-            s._value = v
-            CCS.SetScale(v)
-            refresh()
-            if CCS._applyWindowScale then CCS._applyWindowScale(v) end
-            if CCS._applyProfilesScale then CCS._applyProfilesScale(v) end
-        end
-        s:SetScript("OnMouseDown", function(self, btn)
-            if btn ~= "LeftButton" then return end
-            dragging = true
-            preview(valueFromCursor())
-            self:SetScript("OnUpdate", function() preview(valueFromCursor()) end)
-        end)
-        s:SetScript("OnMouseUp", function(self)
-            if not dragging then return end
-            dragging = false
-            self:SetScript("OnUpdate", nil)
-            commit(valueFromCursor())
-        end)
-        thumb:EnableMouse(false)
-        s:SetScript("OnSizeChanged", refresh)
-
-        scaleSlider = s
-        scaleValue = text
-        s.refresh = refresh
-        refresh()
-        addTooltip(s, "Window scale", "Resize the whole window.")
+        scaleSlider = makeMiniSlider(topBlock, {
+            width = 120, thumbW = 46, min = 0.75, max = 2.0, step = 0.05,
+            get    = function() return CCS.GetScale() end,
+            format = function(v) return ("%d%%"):format(math.floor(v * 100 + 0.5)) end,
+            -- Preview while dragging; apply the actual scale only on release,
+            -- since SetScale mid-drag would jump the whole window around.
+            onChange = function(v, done)
+                if not done then return end
+                CCS.SetScale(v)
+                if CCS._applyWindowScale   then CCS._applyWindowScale(v)   end
+                if CCS._applyProfilesScale then CCS._applyProfilesScale(v) end
+            end,
+        })
+        scaleSlider:SetPoint("RIGHT", helpBtn, "LEFT", -10, 0)
+        scaleLbl:SetPoint("RIGHT", scaleSlider, "LEFT", -6, 0)
+        addTooltip(scaleSlider, "Window scale", "Resize the whole window.")
     end
 
     CCS._syncSettingsBox = function()
         chanDD:SetValue(CCS.GetChannel())
-        if scaleSlider then
-            scaleSlider._value = CCS.GetScale()
-            if scaleSlider.refresh then scaleSlider:refresh() end
-            scaleValue:SetText(("%d%%"):format(math.floor(CCS.GetScale() * 100 + 0.5)))
-        end
+        refreshChanStatus()
+        if scaleSlider then scaleSlider:SyncValue() end
     end
 
     local function refreshModuleBtns()
@@ -1909,22 +2206,6 @@ local function BuildCCSOptions(panel, isStandalone)
         "Check this if a debuff duration is wrong, you need to manually adjust it, or if you need them customized for some other reason.\nContact me if you want a default value changed.")
 
     -- Global "Extra aura triggers" checkbox, sits left of Manual Timers.
-    local extraTriggersCB = CreateFrame("CheckButton", nil, headerBar, "UICheckButtonTemplate")
-    extraTriggersCB:SetSize(16, 16)
-    stripCheckBorder(extraTriggersCB)
-    local extraTriggersLbl = makeFontString(headerBar, "ARTWORK", "GameFontNormalSmall")
-    extraTriggersLbl:SetText("|cffaaaaaa Extra aura triggers|r")
-    extraTriggersLbl:SetPoint("LEFT", extraTriggersCB, "RIGHT", 2, 0)
-    addTooltip(extraTriggersCB, "Extra aura triggers",
-        "Lets each spell also play a sound when it gains a stack or drops off, not just when it lands.\nClick a spell name to open its triggers.")
-    extraTriggersCB:SetScript("OnClick", function(self)
-        withCombatGuard(function()
-            local on = self:GetChecked()
-            CCS.SetExtraAuraTriggers(on)
-            if not on then CCS.ClearSpellExpansions() end
-            fullRebuild()
-        end)
-    end)
 
     -- Search box (filters the ability list live). Lives in the header bar on
     -- the same baseline as Manual Timers, left side, ~30% width.
@@ -2216,66 +2497,85 @@ local function BuildCCSOptions(panel, isStandalone)
     scroll:SetPoint("TOPLEFT",     headerBar, "BOTTOMLEFT",  0,  -1)
     scroll:SetPoint("BOTTOMRIGHT", panel,     "BOTTOMRIGHT", -6,  10)
 
+    -- Blizzard's UIPanel thumb is fixed-size, so hide it and drive a custom
+    -- track/thumb whose height reflects the visible/content ratio.
     if scroll.ScrollBar then
-        scroll.ScrollBar:ClearAllPoints()
-        scroll.ScrollBar:SetPoint("TOPRIGHT",    scroll, "TOPRIGHT",    0, -2)
-        scroll.ScrollBar:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", 0,  2)
+        scroll.ScrollBar:SetAlpha(0)
+        scroll.ScrollBar:EnableMouse(false)
+    end
 
-        -- Modernize the default UIPanel scrollbar: drop the arrow buttons and
-        -- beveled art, leaving a thin flat track with a flat thumb.
-        local sb = scroll.ScrollBar
-        sb:SetWidth(8)
+    local MIN_THUMB = 24
 
-        local up   = sb.ScrollUpButton   or _G[(sb:GetName() or "") .. "ScrollUpButton"]
-        local down = sb.ScrollDownButton or _G[(sb:GetName() or "") .. "ScrollDownButton"]
-        if up   then up:Hide();   up:SetHeight(0.01)   end
-        if down then down:Hide(); down:SetHeight(0.01) end
+    local sbTrack = CreateFrame("Frame", nil, panel)
+    sbTrack:SetWidth(8)
+    sbTrack:SetPoint("TOPRIGHT",    scroll, "TOPRIGHT",    -2, 0)
+    sbTrack:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", -2, 0)
+    local trackTex = sbTrack:CreateTexture(nil, "BACKGROUND")
+    trackTex:SetAllPoints(); trackTex:SetColorTexture(1, 1, 1, 0.04)
 
-        -- Hide the stock track/thumb textures.
-        if sb.SetThumbTexture then sb:SetThumbTexture("Interface\\Buttons\\WHITE8X8") end
-        local thumb = sb.ThumbTexture or (sb.GetThumbTexture and sb:GetThumbTexture())
-        if thumb then
-            thumb:SetColorTexture(0.5, 0.5, 0.5, 0.7)
-            thumb:SetWidth(8)
+    local sbThumb = CreateFrame("Frame", nil, sbTrack)
+    sbThumb:SetWidth(8); sbThumb:EnableMouse(true)
+    local thumbTex = sbThumb:CreateTexture(nil, "OVERLAY")
+    thumbTex:SetAllPoints(); thumbTex:SetColorTexture(0.5, 0.5, 0.5, 0.7)
+
+    local function placeThumb()
+        local range  = scroll:GetVerticalScrollRange() or 0
+        local trackH = sbTrack:GetHeight() or 0
+        local thumbH = sbThumb:GetHeight() or MIN_THUMB
+        if range <= 0 or trackH <= thumbH then
+            sbThumb:ClearAllPoints(); sbThumb:SetPoint("TOP", sbTrack, "TOP", 0, 0); return
         end
-
-        -- Flat track behind the thumb.
-        local track = sb:CreateTexture(nil, "BACKGROUND")
-        track:SetColorTexture(1, 1, 1, 0.04)
-        track:SetPoint("TOPLEFT",     sb, "TOPLEFT",     0, 0)
-        track:SetPoint("BOTTOMRIGHT", sb, "BOTTOMRIGHT", 0, 0)
+        local frac = (scroll:GetVerticalScroll() or 0) / range
+        frac = math.max(0, math.min(1, frac))
+        sbThumb:ClearAllPoints()
+        sbThumb:SetPoint("TOP", sbTrack, "TOP", 0, -(trackH - thumbH) * frac)
     end
 
     local function updateScrollBar()
-        if not scroll.ScrollBar then return end
-        local contentH = scrollChild and scrollChild:GetHeight() or 0
-        local viewH    = scroll:GetHeight()
-        local range    = math.max(0, contentH - viewH)
-        local needs    = range > 0
-        scroll.ScrollBar:SetShown(needs)
-        if needs then
-            scroll.ScrollBar:SetMinMaxValues(0, range)
-            scroll.ScrollBar:SetValueStep(ROW_HEIGHT)
-            scroll.ScrollBar:SetValue(math.min(scroll:GetVerticalScroll(), range))
-        else
-            scroll:SetVerticalScroll(0)
-        end
+        local trackH  = sbTrack:GetHeight() or 0
+        local visible = scroll:GetHeight() or 0
+        local range   = scroll:GetVerticalScrollRange() or 0
+        local content = visible + range
+        local cur     = scroll:GetVerticalScroll() or 0
+        if cur > range then scroll:SetVerticalScroll(range) end   -- re-clamp after a grow
+        if range <= 1 or content <= 0 or visible <= 0 then sbTrack:Hide(); return end
+        sbTrack:Show()
+        local ratio  = math.min(1, visible / content)
+        local thumbH = math.max(MIN_THUMB, math.min(trackH, trackH * ratio))
+        sbThumb:SetHeight(thumbH); placeThumb()
     end
+    CCS._updateScrollBar = updateScrollBar
 
     scroll:EnableMouseWheel(true)
     scroll:SetScript("OnMouseWheel", function(self, delta)
-        local max = math.max(0, scrollChild:GetHeight() - self:GetHeight())
-        self:SetVerticalScroll(math.max(0, math.min(self:GetVerticalScroll() - delta * ROW_HEIGHT * 3, max)))
-        if scroll.ScrollBar then scroll.ScrollBar:SetValue(self:GetVerticalScroll()) end
+        local range = self:GetVerticalScrollRange() or 0
+        local cur   = self:GetVerticalScroll() or 0
+        self:SetVerticalScroll(math.max(0, math.min(range, cur - delta * ROW_HEIGHT * 2)))
+        placeThumb()
     end)
+    scroll:SetScript("OnVerticalScroll",      function() placeThumb() end)
+    scroll:SetScript("OnScrollRangeChanged",  function() updateScrollBar() end)
+    scroll:HookScript("OnShow",               updateScrollBar)
+    scroll:HookScript("OnSizeChanged",        updateScrollBar)
 
-    if scroll.ScrollBar then
-        scroll.ScrollBar:SetScript("OnValueChanged", function(self, value)
-            scroll:SetVerticalScroll(value)
+    sbThumb:RegisterForDrag("LeftButton")
+    sbThumb:SetScript("OnMouseDown", function(self)
+        self._startY = select(2, GetCursorPosition()) / scroll:GetEffectiveScale()
+        self._startScroll = scroll:GetVerticalScroll() or 0
+        self:SetScript("OnUpdate", function(this)
+            if not IsMouseButtonDown("LeftButton") then this:SetScript("OnUpdate", nil); return end
+            local range  = scroll:GetVerticalScrollRange() or 0
+            local trackH = sbTrack:GetHeight() or 0
+            local thumbH = this:GetHeight() or MIN_THUMB
+            local span   = trackH - thumbH
+            if span <= 0 or range <= 0 then return end
+            local y  = select(2, GetCursorPosition()) / scroll:GetEffectiveScale()
+            local dy = this._startY - y
+            scroll:SetVerticalScroll(math.max(0, math.min(range, this._startScroll + (dy / span) * range)))
+            placeThumb()
         end)
-    end
-    scroll:HookScript("OnShow",        updateScrollBar)
-    scroll:HookScript("OnSizeChanged", updateScrollBar)
+    end)
+    sbThumb:SetScript("OnMouseUp", function(self) self:SetScript("OnUpdate", nil) end)
 
     scrollChild = CreateFrame("Frame")
     scrollChild:SetWidth(1); scrollChild:SetHeight(1)
@@ -2295,16 +2595,6 @@ local function BuildCCSOptions(panel, isStandalone)
         durationOverrideCB:ClearAllPoints()
         durationOverrideCB:SetPoint("RIGHT", durationOverrideLbl, "LEFT", 0, 0)
         durationOverrideCB:SetChecked(CCS.GetCustomTimerOverride())
-
-        extraTriggersLbl:ClearAllPoints()
-        extraTriggersLbl:SetPoint("RIGHT", durationOverrideCB, "LEFT", -14, 0)
-        extraTriggersCB:ClearAllPoints()
-        extraTriggersCB:SetPoint("RIGHT", extraTriggersLbl, "LEFT", 0, 0)
-        extraTriggersCB:SetChecked(CCS.GetExtraAuraTriggers())
-        -- Only offer it on clients whose API can play on stack/removal.
-        local canTrigger = not CCS.SupportsAuraTriggers or CCS.SupportsAuraTriggers()
-        extraTriggersCB:SetShown(canTrigger)
-        extraTriggersLbl:SetShown(canTrigger)
 
         if CCS._searchBox then
             CCS._searchBox:ClearAllPoints()
@@ -2414,6 +2704,7 @@ local function BuildCCSOptions(panel, isStandalone)
 
         if not built then
             built = true
+            local _buildT0 = debugprofilestop()   -- temporary: /ccs loadtime
             local w = scroll:GetWidth()
             scrollChild:SetWidth(w)
             _leftW = math.floor(w * LEFT_PANEL_FRACTION)
@@ -2423,6 +2714,7 @@ local function BuildCCSOptions(panel, isStandalone)
             updateHeaders(w)
             updateScrollBar()
             if CCS._refreshBulkUnderlines then CCS._refreshBulkUnderlines() end
+            CCS._firstBuildMs = debugprofilestop() - _buildT0   -- temporary
 
             -- Cache the chosen font path first, then start prewarm, so rows
             -- created in the background pick it up. applyFont fonts what exists.
@@ -2564,6 +2856,7 @@ local function CreateStandaloneWindow()
     win:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
     local bg = win:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(); bg:SetColorTexture(0.1, 0.1, 0.1, 0.98)
+    CCS.AddShadow(win)
     win:Hide()
     tinsert(UISpecialFrames, "CCSStandaloneWindow")
 
@@ -2803,6 +3096,38 @@ SlashCmdList["CCS"] = function(msg)
         end
         print("|cffffff00CCS:|r Test — |cffffffff" .. matchedAbility.label .. "|r (" .. difficulty .. ")")
         testAbility(matchedAbility, difficulty)
+        return
+    end
+
+    if arg == "loadtime" then
+        -- Temporary probe: synchronous cost of DB load + first UI build.
+        local load  = CCS._loadMs
+        local build = CCS._firstBuildMs
+        print("|cffffff00CCS:|r load timing (synchronous work only):")
+        print(("   DB load + migrate + sync: %s ms")
+            :format(load  and ("%.2f"):format(load)  or "n/a"))
+        print(("   first window build:       %s ms%s")
+            :format(build and ("%.2f"):format(build) or "not built yet",
+                    build and "" or " (open the window once, then re-run)"))
+        return
+    end
+
+    if arg == "triggerdebug" then
+        CCS._auraSoundLog = not CCS._auraSoundLog
+        print("|cffffff00CCS:|r aura sound logging "
+            .. (CCS._auraSoundLog and "|cff00ff00on|r." or "|cffff5555off|r."))
+        if Enum and Enum.UnitAuraSoundTrigger then
+            for k, v in pairs(Enum.UnitAuraSoundTrigger) do
+                print(("   Enum.UnitAuraSoundTrigger.%s = %s"):format(k, tostring(v)))
+            end
+        else
+            print("   |cffff5555Enum.UnitAuraSoundTrigger is missing.|r")
+        end
+        if CCS.CountHandles then
+            local keys, ids = CCS.CountHandles()
+            print(("   tracking %d abilities / %d sound registrations"):format(keys, ids))
+        end
+        if CCS._auraSoundLog then CCS.RefreshSounds() end
         return
     end
 

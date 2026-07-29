@@ -1,6 +1,4 @@
 -- profiles_ui.lua
--- custom profile manager, replaces the AceDBOptions/AceConfig dialog so we can
--- drop those libs. built on our own dropdown/button widgets. handles switch,
 -- new, copy, rename, delete, plus profile export/import (LibSerialize+LibDeflate).
 
 local addonName = ...
@@ -180,6 +178,7 @@ local function build()
     panel:RegisterForDrag("LeftButton")
     panel:SetScript("OnDragStart", panel.StartMoving)
     panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
+    if CCS.AddShadow then CCS.AddShadow(panel) end
     panel:Hide()
 
     local title = fstring(panel, "ARTWORK", "GameFontNormalLarge")
@@ -201,6 +200,7 @@ local function build()
     ddLbl:SetText("|cffccccccActive profile|r")
 
     panel.profileDD = CCS_CreateDropdown(panel, 200, 22, 12)
+    panel.profileDD._noScroll = true
     panel.profileDD:SetPoint("TOPLEFT", ddLbl, "BOTTOMLEFT", 0, -4)
     panel.profileDD._noGreen = true
     panel.profileDD:SetOnSelect(function(v)
@@ -234,6 +234,7 @@ local function build()
     delLbl:SetText("|cffccccccDelete|r")
 
     panel.deleteDD = CCS_CreateDropdown(panel, 160, 22, 12)
+    panel.deleteDD._noScroll = true
     panel.deleteDD:SetPoint("LEFT", delLbl, "RIGHT", 6, 0)
     panel.deleteDD._noGreen = true
     panel.deleteDD:SetOnSelect(function(v)
