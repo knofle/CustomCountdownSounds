@@ -17,8 +17,6 @@ Libs\LibDeflate\LibDeflate.lua
 
 sounds.lua
 core.lua
-ces_data.lua
-ces.lua
 widgets.lua
 ui.lua
 profiles_ui.lua
