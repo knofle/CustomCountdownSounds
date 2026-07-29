@@ -17,34 +17,32 @@ Libs\LibDeflate\LibDeflate.lua
 
 sounds.lua
 core.lua
+ces_data.lua
+ces.lua
 widgets.lua
 ui.lua
 profiles_ui.lua
 
-# 12.0.x raids
-data\r_vs_dr_mqd.lua
-data\r_sporefall.lua
+# Season 1
+data\S1\r_vs_dr_mqd.lua
+data\S1\r_sporefall.lua
+data\S1\m_algethar_academy.lua
+data\S1\m_magisters_terrace.lua
+data\S1\m_maisara_caverns.lua
+data\S1\m_nexus_point_xenas.lua
+data\S1\m_pit_of_saron.lua
+data\S1\m_seat_of_the_triumvirate.lua
+data\S1\m_skyreach.lua
+data\S1\m_windrunner_spire.lua
 
-# 12.1.0 raid
-data\r_venomous_abyss.lua
-data\r_the_tidebound_grotto.lua
-
-# 12.0.x dungeons
-data\m_magisters_terrace.lua
-data\m_maisara_caverns.lua
-data\m_nexus_point_xenas.lua
-data\m_windrunner_spire.lua
-data\m_algethar_academy.lua
-data\m_pit_of_saron.lua
-data\m_seat_of_the_triumvirate.lua
-data\m_skyreach.lua
-
-# 12.1.0 dungeons
-data\m_murder_row.lua
-data\m_den_of_nalorakk.lua
-data\m_blinding_vale.lua
-data\m_voidscar_arena.lua
-data\m_altar_of_fangs.lua
-data\m_ruby_life_pools.lua
-data\m_temple_of_sethraliss.lua
-data\m_kings_rest.lua
+# Season 2
+data\S2\r_venomous_abyss.lua
+data\S2\r_the_tidebound_grotto.lua
+data\S2\m_altar_of_fangs.lua
+data\S2\m_blinding_vale.lua
+data\S2\m_den_of_nalorakk.lua
+data\S2\m_kings_rest.lua
+data\S2\m_murder_row.lua
+data\S2\m_ruby_life_pools.lua
+data\S2\m_temple_of_sethraliss.lua
+data\S2\m_voidscar_arena.lua
