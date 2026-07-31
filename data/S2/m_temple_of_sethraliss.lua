@@ -10,9 +10,12 @@ CCS_Spells_Mplus_TempleOfSethraliss = {
         journalEncounterID = 2142,          
         abilities = {
             { key = "tos_gust",                     label = "Gust",                             privateID = 1288457,                soundM = nil,                               advanced = true },
-            { key = "tos_gale_force",               label = "Gale Force",                       privateID = 1289062,                soundM = {nil,"file:3,5s" } },
+            { key = "tos_gale_force",               label = "Gale Force",                       privateID = 1289059,                soundM = {nil,"file:3,5s" } },
+
             { key = "tos_thunder_lightning",        label = "Thunder and Lightning",            privateID = 1288074,                soundM = {"file:soak","file:4s" } },
-            { key = "tos_tempest_winds_target",     label = "Tempest Winds (target)",           privateID = {1288864,1289755,1289756,1289754 },   soundM = {"file:drop","file:5s" } },
+            { key = "tos_tempest_winds_target",     label = "Tempest Winds (target)",           privateID = {1288874 },             soundM = {"file:drop","file:5s" } },
+
+
             { key = "tos_tempest_winds_pacify",     label = "Tempest Winds (silence)",          privateID = 1288885,                soundM = "file:silenced",                   advanced = true },
             --{ key = "tos_slither_strike",           label = "Slither Strike",                   privateID = 1295635,                soundM = "file:dot",                        advanced = true    }, -- REMOVED: Slither Strike no longer applies a DoT
         },
@@ -31,7 +34,7 @@ CCS_Spells_Mplus_TempleOfSethraliss = {
             { key = "tos_burrowquake",              label = "Burrowquake",                      privateID = 1300227,                soundM = nil,                            advanced = true },
             { key = "tos_lightning_bite",           label = "Lightning Bite",                   privateID = 1308838,                soundM = nil,                            advanced = true },
             { key = "tos_serpentstorm",             label = "Serpentstorm",                     privateID = 1293048,                soundM = nil,                            advanced = true },
-            { key = "tos_thunder_spit_dot",         label = "Thunder Spit (dot)",               privateID = 1289588,                soundM = "file:ticking_4s",                                                                                            },
+            { key = "tos_thunder_spit_dot",         label = "Thunder Spit (dot)",               privateID = 1289588,                soundM = "file:ticking_5s",                                                                                            },
             { key = "tos_thunder_spit_target",      label = "Thunder Spit (target)",            privateID = 1289109,                soundM = "file:targeted" }, -- 3s targeted
             { key = "tos_burrow",                   label = "Burrow",                           privateID = 264206,                 soundM = nil,                            advanced = true },
             { key = "tos_electrified_ground",       label = "Electrified Ground",               privateID = 1297034,                soundM = nil,                            advanced = true },
@@ -60,11 +63,11 @@ CCS_Spells_Mplus_TempleOfSethraliss = {
         journalEncounterID = 2145,         
         abilities = {
             { key = "tos_corruption",               label = "Corruption",                       privateID = 1300877,                soundM = nil,                            advanced = true },
-            { key = "tos_corruption_burst",         label = "Corruption Burst",                 privateID = 1302826,                soundM = nil,                            advanced = true },
+            { key = "tos_corruption_burst",         label = "Corruption Burst",                 privateID = 1302826,                soundM = {nil,"file:3sfull"},              advanced = true },
             { key = "tos_shadowlash",               label = "Shadowlash",                       privateID = 1300714,                soundM = nil,                            advanced = true },
             { key = "tos_tainted_strike",           label = "Tainted Strike",                   privateID = 1303446,                soundM = nil,                            advanced = true },
-            { key = "tos_vile_charge",              label = "Vile Charge",                      privateID = 1302618,                soundM = nil,                     advanced = true },
-            { key = "tos_latent_hex",               label = "Latent Hex",                       privateID = 1311964,                soundM = {"file:spread","file:5s" } },
+            { key = "tos_vile_charge",              label = "Vile Charge",                      privateID = 1302618,                soundM = nil,                            advanced = true },
+            { key = "tos_latent_hex",               label = "Latent Hex",                       privateID = 1311979,                soundM = {"file:drop","file:5s" }                        },
             { key = "tos_hex_muck",                 label = "Hex Muck",                         privateID = 1300684,                soundM = nil,                            advanced = true },
             { key = "tos_flame_shock",              label = "Flame Shock",                      privateID = 1302158,                soundM = nil,                            advanced = true },
             { key = "fixate_tormentor",             label = "Fixate",                           privateID = 1300704,                soundM = nil,                            advanced = true }, -- Fixated by a faithless tormentor
@@ -80,7 +83,6 @@ CCS_Spells_Mplus_TempleOfSethraliss = {
             { key = "tos_serrated_charge",          label = "Serrated Charge",                  privateID = 1291399,                soundM = nil,                            advanced = true },
             { key = "tos_arrow_barrage",            label = "Arrow Barrage",                    privateID = 1308113,                soundM = nil,                            advanced = true },
             { key = "tos_cytotoxin",                label = "Cytotoxin",                        privateID = 1308148,                soundM = nil,                           advanced = true    },
-            { key = "tos_siphon_energy",            label = "Siphon Energy",                    privateID = 1303596,                soundM = nil,                            advanced = true    },
             { key = "tos_sunder_slam",              label = "Sunder Slam",                      privateID = 1291468,                soundM = nil,                            advanced = true    },
             { key = "tos_caustic_stomp",            label = "Caustic Stomp",                    privateID = 1303486,                soundM = nil,                            advanced = true    },
             { key = "tos_imbued_conduction",        label = "Imbued Conduction",                privateID = 1296052,                soundM = nil,                            advanced = true    },
@@ -90,7 +92,10 @@ CCS_Spells_Mplus_TempleOfSethraliss = {
 
             { key = "tos_lingering_storm",          label = "Lingering Storm",                  privateID = 1293133,                soundM = nil,                            advanced = true    },
             { key = "tos_polarized_field",          label = "Polarized Field",                  privateID = 273274,                 soundM = nil,                            advanced = true    },
-            { key = "tos_latent_hex_trash",         label = "Latent Hex (trash)",               privateID = 1311981,                soundM = {"file:spread","file:5s" },                         },
+            { key = "tos_siphon_energy",            label = "Siphon Energy",                    privateID = 1303596,                soundM = nil,                            advanced = true    },
+            
+            
+            { key = "tos_latent_hex_trash",         label = "Latent Hex (trash)",               privateID = 1311981,                soundM = {"file:drop","file:5s" },                         },
             { key = "tos_hex_muck_trash",           label = "Hex Muck (trash)",                 privateID = 1300684,                soundM = nil,                            advanced = true    },
             { key = "tos_loose_sparks",             label = "Loose Sparks",                     privateID = 1225638,                soundM = nil,                            advanced = true    },
 

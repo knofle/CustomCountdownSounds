@@ -23,7 +23,7 @@ CCS_Spells_Mplus_AltarOfFangs = {
         journalInstanceID = 1322,
         journalEncounterID = 2879,        
         abilities = {
-            { key = "spiteful_hunt",                label = "Spiteful Hunt",                    privateID = 1300503,                soundM = "file:fixate" }, -- Fixate 15s
+            { key = "spiteful_hunt",                label = "Spiteful Hunt",                    privateID = 1300503,                soundM = nil, advanced = true }, -- Fixate 15s
             { key = "toxic_atrophy",                label = "Toxic Atrophy",                    privateID = 1310974,                soundM = nil,                           advanced = true },
             { key = "synchronized_venom",           label = "Synchronized Venom",               privateID = 1299189,                soundM = "file:dot",                    advanced = true },
             --{ key = "spiteful_venom",               label = "Spiteful Venom",                   privateID = 1305368,                soundM = "file:dot",                        advanced = true, desc = "Stacking poison from a snake that caught you. Avoid getting hit." }, -- REMOVED: Uncoiled Writhes no longer apply Spiteful Venom
@@ -56,7 +56,7 @@ CCS_Spells_Mplus_AltarOfFangs = {
         section = "Trash mob abilities",
         abilities = {
             { key = "septic_spatter",               label = "Septic Spatter",                   privateID = 1306232,                soundM = nil,                               advanced = true    },
-            { key = "paralyzing_shots",             label = "Paralyzing Shots",                 privateID = 1294569,                soundM = "file:debuff",                     advanced = true   },
+            { key = "paralyzing_shots",             label = "Paralyzing Shots",                 privateID = 1294569,                soundM = "file:poison",                                        },
             { key = "toxic_breath",                 label = "Toxic Breath",                     privateID = 1306669,                soundM = nil,                               advanced = true    },
             { key = "piercing_hiss",                label = "Piercing Hiss",                    privateID = 1294557,                soundM = nil,                               advanced = true    },
             { key = "blood_sacrifice",              label = "Blood Sacrifice",                  privateID = 1306550,                soundM = "file:absorb",                     advanced = true    },
