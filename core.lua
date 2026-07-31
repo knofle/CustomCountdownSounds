@@ -30,14 +30,17 @@ local function getCurrentDifficulty()
         if difficultyID == 16 or difficultyID == 233 then return "M"
         elseif difficultyID == 15 then return "H"
         end
+        -- /ccs test: also load in Normal (and any other) raid difficulty,
+        -- using the Heroic sound set. Session-only, resets every reload.
+        if CCS._testMode then return "H" end
     elseif instanceType == "party" then
         -- 8 = Mythic Keystone, 23 = Mythic dungeon / M0
         if difficultyID == 8 or difficultyID == 9 or difficultyID == 23 then
             return "M"
         end
-        -- /plexus test mode: treat any party instance as Mythic so follower
-        -- dungeons work for PTR testing. Resets every reload.
-        if CCS._followerTestMode then return "M" end
+        -- /ccs test: load in any party instance (normal, heroic, follower)
+        -- as Mythic, so all dungeon content works for PTR testing.
+        if CCS._testMode then return "M" end
     end
     return nil
 end

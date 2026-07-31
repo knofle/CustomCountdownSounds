@@ -19,6 +19,7 @@ sounds.lua
 core.lua
 widgets.lua
 ui.lua
+custom_auras.lua
 profiles_ui.lua
 
 # Season 1

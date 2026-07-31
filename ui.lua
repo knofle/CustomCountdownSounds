@@ -2967,13 +2967,16 @@ SlashCmdList["CCS"] = function(msg)
         return
     end
 
-    if arg == "plexus" then
-        -- Follower-dungeon test mode. Session-only; resets every /reload.
-        CCS._followerTestMode = not CCS._followerTestMode
-        if CCS._followerTestMode then
-            print("|cffffff00CCS:|r Follower dungeon test mode |cff00ff00enabled|r. Any party instance is treated as Mythic.")
+    if arg == "test" then
+        -- Test mode: load module data in difficulties that normally don't
+        -- register, so sounds can be checked on the PTR outside real content.
+        -- Raid loads in Normal too (Heroic sound set); dungeons load in any
+        -- party instance including follower, as Mythic. Session-only.
+        CCS._testMode = not CCS._testMode
+        if CCS._testMode then
+            print("|cffffff00CCS:|r Test mode |cff00ff00enabled|r. Raid loads in Normal/Heroic/Mythic/Flex; dungeons load in Normal/Heroic/Mythic/M+/follower.")
         else
-            print("|cffffff00CCS:|r Follower dungeon test mode |cffff5555disabled|r.")
+            print("|cffffff00CCS:|r Test mode |cffff5555disabled|r.")
         end
         CCS.RefreshAll()
         return
