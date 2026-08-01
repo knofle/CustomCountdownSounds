@@ -29,7 +29,7 @@ CCS_Spells_Mplus_TempleOfSethraliss = {
         journalInstanceID = 1030,
         journalEncounterID = 2143,         
         abilities = {
-            { key = "tos_knot_of_snakes_target",    label = "A Knot of Snakes (target)",        privateID = 1290030,                soundM = {"file:marked","file:4s" } }, -- 4s targeted
+            { key = "tos_knot_of_snakes_target",    label = "A Knot of Snakes (target)",        privateID = 1290030,                soundM = {"file:stack","file:4s" } }, -- 4s targeted
             { key = "tos_knot_of_snakes_stun",      label = "A Knot of Snakes (stun)",          privateID = 263958,                 soundM = nil,                            advanced = true }, -- stun after
             { key = "tos_burrowquake",              label = "Burrowquake",                      privateID = 1300227,                soundM = nil,                            advanced = true },
             { key = "tos_lightning_bite",           label = "Lightning Bite",                   privateID = 1308838,                soundM = nil,                            advanced = true },

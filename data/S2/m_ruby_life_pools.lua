@@ -62,7 +62,7 @@ CCS_Spells_Mplus_RubyLifePools = {
             { key = "rlp_tectonic_strike",          label = "Tectonic Strike",                  privateID = 1305225,                soundM = nil,                               advanced = true    },
             { key = "rlp_steel_barrage",            label = "Steel Barrage",                    privateID = 372047,                 soundM = nil,                               advanced = true    },
             { key = "rlp_inferno_trash",            label = "Inferno (trash)",                  privateID = 373692,                 soundM = nil,                               advanced = true    },
-            { key = "rlp_living_bomb",              label = "Living Bomb",                      privateID = 373693,                 soundM = {"file:spread","file:6s" }  },
+            { key = "rlp_living_bomb",              label = "Living Bomb",                      privateID = 373693,                 soundM = {"file:bomb","file:6s" }  },
             { key = "rlp_flaming_barrage",          label = "Flaming Barrage",                  privateID = 385536,                 soundM = nil,                               advanced = true    },
             { key = "rlp_fire_maw",                 label = "Fire Maw",                         privateID = 395292,                 soundM = nil,                               advanced = true    },
             { key = "rlp_rolling_thunder",          label = "Rolling Thunder",                  privateID = 392641,                 soundM = "file:marked" },

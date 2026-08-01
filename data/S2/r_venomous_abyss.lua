@@ -34,12 +34,12 @@ local entries = {
         journalInstanceID = 1320,
         journalEncounterID = 2874,
         abilities = {
-            { key = "unstable_miasma",          label = "Unstable Miasma",              privateID = 1288260,                soundH = {"stack","file:8s" },               soundM = {"stack","file:8s" } }, -- Upon expiration, damage split players 5 yards.
+            { key = "unstable_miasma",          label = "Unstable Miasma",              privateID = 1288260,                soundH = {"file:miasma","file:8s" },               soundM = {"file:miasma","file:8s" } }, -- Upon expiration, damage split players 5 yards.
             { key = "clinging_murk",            label = "Clinging Murk",                privateID = 1288297,                soundH = {"drop","file:6s" },                soundM = {"drop","file:6s" } },
             { key = "helical_toxins",           label = "Helical Toxins",               privateID = 1284590,                soundH = "clear",                           soundM = "clear" }, -- Run into people, stack to exactly 4.
             { key = "mark_of_acid",             label = "Mark of Acid",                 privateID = 1284500,                soundH = "file:acid",                       soundM = "file:acid",                    advanced = true },
             { key = "mark_of_blood",            label = "Mark of Blood",                privateID = 1284506,                soundH = "file:blood",                      soundM = "file:blood",                   advanced = true },
-            { key = "shifting_protovenom",      label = "Shifting Protovenom",          privateID = 1296880,                soundH = "clear",                           soundM = "clear",                        advanced = true }, -- Hit other protovenoms, colliding - Protovenom Eruption
+            { key = "shifting_protovenom",      label = "Shifting Protovenom",          privateID = 1296880,                soundH = "file:venom",                           soundM = "file:venom",                              }, -- Hit other protovenoms, colliding - Protovenom Eruption
             { key = "blood_venom",              label = "Blood Venom",                  privateID = 1284210,                soundH = nil,                               soundM = nil,                            advanced = true }, -- Puddle damage
             { key = "blighted_blood",           label = "Blighted Blood",               privateID = 1284471,                soundH = nil,                               soundM = nil,                            advanced = true }, -- 18s Magic Dot
             { key = "debilitating_miasma",      label = "Debilitating Miasma",          privateID = 1284477,                soundH = nil,                               soundM = nil,                            advanced = true }, -- 10s dot, movement decrease, movement reduces stacks.
@@ -56,17 +56,17 @@ local entries = {
         journalInstanceID = 1320,
         journalEncounterID = 2894,        
         abilities = {
+            { key = "mighty_thud",                  label = "Mighty Thud",                  privateID = 1296092,                soundH = "targeted",                        soundM = "targeted" },
+            { key = "burning_flames",               label = "Burning Flames",               privateID = 1295928,                soundH = "file:fire",                       soundM = "file:fire" },
+            { key = "piercing_frost",               label = "Piercing Frost",               privateID = 1295954,                soundH = "file:frost",                      soundM = "file:frost" },
+            { key = "frostfire_volley_fire",        label = "Frostfire Volley (Fire)",      privateID = 1295886,                soundH = "file:fire_volley",                soundM = "file:fire_volley" },
+            { key = "frostfire_volley_frost",       label = "Frostfire Volley (Frost)",     privateID = 1295935,                soundH = "file:frost_volley",               soundM = "file:frost_volley" },
+            { key = "explosive_surprise",           label = "Explosive Surprise",           privateID = 1297625,                soundH = "file:bomb",                       soundM = "file:bomb",                             },            
             { key = "steady_strikes",               label = "Steady Strikes",               privateID = 1291929,                soundH = nil,                               soundM = nil,                            advanced = true },
             { key = "splinters",                    label = "Splinters",                    privateID = 1308853,                soundH = nil,                               soundM = nil,                            advanced = true    },
             { key = "shredding_shards",             label = "Shredding Shards",             privateID = 1295858,                soundH = nil,                               soundM = nil,                            advanced = true },
-            { key = "mighty_thud",                  label = "Mighty Thud",                  privateID = 1296092,                soundH = "targeted",                        soundM = "targeted" },
             { key = "shell_spin",                   label = "Shell Spin",                   privateID = 1291918,                soundH = nil,                               soundM = nil,                            advanced = true },
-            { key = "burning_flames",               label = "Burning Flames",               privateID = 1295928,                soundH = "file:fire",                    soundM = "file:fire" },
-            { key = "piercing_frost",               label = "Piercing Frost",               privateID = 1295954,                soundH = "file:frost",                      soundM = "file:frost" },
-            { key = "frostfire_volley_fire",        label = "Frostfire Volley (Fire)",      privateID = 1295886,                soundH = "file:fire_volley",                       soundM = "file:fire_volley" },
-            { key = "frostfire_volley_frost",       label = "Frostfire Volley (Frost)",     privateID = 1295935,                soundH = "file:frost_volley",                      soundM = "file:frost_volley" },
             { key = "frost_patch",                  label = "Frost Patch",                  privateID = 1297648,                soundH = nil,                               soundM = nil,                            advanced = true },
-            { key = "explosive_surprise",           label = "Explosive Surprise",           privateID = 1297625,                soundH = nil,                               soundM = nil,                            advanced = true },
             { key = "bounce",                       label = "Bounce",                       privateID = 1299854,                soundH = nil,                               soundM = nil,                            advanced = true    },
             { key = "fire_patch",                   label = "Fire Patch",                   privateID = 1297649,                soundH = nil,                               soundM = nil,                            advanced = true },
             { key = "blast_wave",                   label = "Blast Wave",                   privateID = 1305844,                soundH = nil,                               soundM = nil,                            advanced = true },
@@ -166,10 +166,10 @@ local entries = {
             { key = "unnerving_fixation",           label = "Unnerving Fixation",           privateID = 1285911,                soundH = "fixate",                          soundM = "fixate" },
             { key = "gravebound",                   label = "Gravebound",                   privateID = 1286837,                soundH = "file:gravebound",                 soundM = "file:gravebound" },
             { key = "shadowfang",                   label = "Shadowfang",                   privateID = 1286326,                soundH = {"spread","file:5s" },              soundM = {"spread","file:5s" },                              }, -- Axe Marks, 15 yard explode after 5s
-            { key = "gloombomb",                    label = "Gloombomb",                    privateID = 1286901,                soundH = {"spread","file:5s" },              soundM = {"spread","file:5s" },                              }, -- Bomb marks, 15 yard damage after 5s. Also Gravebound.
-            { key = "volatile_venom",               label = "Volatile Venom",               privateID = 1282419,                soundH = {"spread","file:5s" },              soundM = {"spread","file:5s" } },
+            { key = "gloombomb",                    label = "Gloombomb",                    privateID = 1286901,                soundH = {"file:bomb","file:5s" },              soundM = {"file:bomb","file:5s" },                              }, -- Bomb marks, 15 yard damage after 5s. Also Gravebound.
+            { key = "volatile_venom",               label = "Volatile Venom",               privateID = 1282419,                soundH = {"drop","file:5s" },               soundM = {"drop","file:5s" } },
             { key = "mutagenic_venom",              label = "Mutagenic Venom",              privateID = 1310498,                soundH = {"spread","file:5s" },              soundM = {"spread","file:5s" } },
-            { key = "guillotine",                   label = "Guillotine",                   privateID = 1283485,                soundH = nil,                               soundM = nil,                            advanced = true    },
+            { key = "guillotine",                   label = "Guillotine",                   privateID = 1283485,                soundH = {"stack","file:5s"},               soundM = nil,                                },
             { key = "guillotined",                  label = "Guillotined",                  privateID = 1307425,                soundH = nil,                               soundM = nil,                            advanced = true    },            
             { key = "noxious_ground",               label = "Noxious Ground",               privateID = 1283290,                soundH = nil,                               soundM = nil,                            advanced = true    },
             { key = "venomfang",                    label = "Venomfang",                    privateID = 1306906,                soundH = nil,                               soundM = nil,                            advanced = true    },

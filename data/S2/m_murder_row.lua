@@ -21,7 +21,7 @@ CCS_Spells_Mplus_MurderRow = {
         journalInstanceID = 1304,
         journalEncounterID = 2680,         
         abilities = {
-            { key = "mr_murder_in_row",             label = "Murder in a Row (target)",         privateID = 474545,                 soundM = "file:clear" },
+            { key = "mr_murder_in_row",             label = "Murder in a Row (target)",         privateID = 474545,                 soundM = "file:hide" },
             { key = "mr_fire_bomb",                 label = "Fire Bomb",                        privateID = 1214352,                soundM = {"file:bomb","file:6s" } },
             { key = "mr_murder_in_row_bleed",       label = "Murder in a Row (dot)",            privateID = 474740,                 soundM = nil,                           advanced = true },
             { key = "mr_fel_infused_freight",       label = "Fel-Infused Freight",              privateID = 1219631,                soundM = nil,                           advanced = true },
@@ -77,7 +77,7 @@ CCS_Spells_Mplus_MurderRow = {
             { key = "mr_glaive_toss",               label = "Glaive Toss",                      privateID = 1295035,                soundM = nil,                           advanced = true    },
             { key = "mr_flay",                      label = "Flay",                             privateID = 1295427,                soundM = nil,                           advanced = true    },
             
-            { key = "mr_curse_of_doom",             label = "Curse of Doom",                    privateID = 1217973,                soundM = "file:curse",                                     },
+            { key = "mr_curse_of_doom",             label = "Curse of Doom",                    privateID = 1217973,                soundM = "file:stack",                                     },
             { key = "mr_drain_life",                label = "Drain Life",                       privateID = 1297682,                soundM = "file:targeted",                                   }, --Cast by Corrupted Warlock
             { key = "mr_eye_beam",                  label = "Eye Beam",                         privateID = 1216954,                soundM = nil,                           advanced = true    },
             { key = "mr_scathing_review",           label = "Scathing Review",                  privateID = 1257877,                soundM = nil,                           advanced = true    },

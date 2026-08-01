@@ -75,7 +75,7 @@ CCS_Spells_Mplus_BlindingVale = {
         abilities = {
             { key = "bv_spore_spines",              label = "Spore Spines",                     privateID = 1238084,                soundM = nil,                            advanced = true    },
             { key = "bv_blight_resin",              label = "Blight Resin",                     privateID = 1251345,                soundM = nil,                            advanced = true    },
-            { key = "bv_lightmaw_beams",            label = "Lightmaw Beams",                   privateID = 1238368,                soundM = nil,                            advanced = true    },
+            { key = "bv_lightmaw_beams",            label = "Lightmaw Beams",                   privateID = 1238368,                soundM = "file:spread",                                     },
             { key = "bv_grievous_gash",             label = "Grievous Gash",                    privateID = 1242135,                soundM = nil,                            advanced = true    },
             { key = "bv_ruptured_earth",            label = "Ruptured Earth",                   privateID = 1237858,                soundM = nil,                            advanced = true    },
             { key = "bv_toxic_spew",                label = "Toxic Spew",                       privateID = 1250937,                soundM = nil,                            advanced = true    },
