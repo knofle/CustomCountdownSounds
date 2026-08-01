@@ -50,6 +50,24 @@ local function getInstanceType()
     return instanceType  -- "raid", "party", "none", etc.
 end
 
+-- The physical instance ID (8th return of GetInstanceInfo), used to register
+-- only the current zone's sounds. This is the instanceID, NOT a UiMapID: it's
+-- stable per instance regardless of floor. Data files put the matching number
+-- in each raid/dungeon's `zoneID`.
+local function getInstanceZone()
+    local instanceID = select(8, GetInstanceInfo())
+    return instanceID
+end
+CCS.GetInstanceZone = getInstanceZone
+
+-- An entry belongs to the current zone if its zoneID matches. Entries without a
+-- zoneID are treated as "always" (so nothing stops registering while zone IDs
+-- are still being filled in).
+local function entryInZone(entry, zone)
+    if entry.zoneID == nil then return true end
+    return entry.zoneID == zone
+end
+
 CCS.getCurrentDifficulty = getCurrentDifficulty
 
 --------------------------------------------------
@@ -74,9 +92,15 @@ local dbDefaults = {
 }
 
 -- Initialise the shared raid table; data files append to it.
-CCS_Spells_Raid = CCS_Spells_Raid or {}
+-- Raid data by season. Data files append into the season list they belong to,
+-- instead of self-gating by patch, so every season stays loaded and registerable
+-- even on a client whose auras won't actually fire for it (future raid-ID based
+-- loading relies on this). CCS_Spells_Raid is a *view* onto the selected season,
+-- swapped by SetSeason below; most display code reads it unchanged.
+CCS_Spells_Raid_S1 = CCS_Spells_Raid_S1 or {}
+CCS_Spells_Raid_S2 = CCS_Spells_Raid_S2 or {}
+CCS_Spells_Raid    = CCS_Spells_Raid_S1   -- reassigned once the season is resolved
 
--- Active M+ dungeons, switched on patch.
 local _, _, _, tocVersion = GetBuildInfo()
 
 local mplusDungeons_120 = {
@@ -101,7 +125,35 @@ local mplusDungeons_121 = {
     { key = "kings_rest",              label = "Kings' Rest",             color = "|cffd4af37", icon = 2011123, data = function() return CCS_Spells_Mplus_KingsRest             end },
 }
 
-CCS.MplusDungeons = (tocVersion >= 120100) and mplusDungeons_121 or mplusDungeons_120
+-- Both seasons' data, always present. The dropdown selects which one the UI
+-- shows; registration walks all of them.
+CCS.SeasonRaids    = { S1 = CCS_Spells_Raid_S1, S2 = CCS_Spells_Raid_S2 }
+CCS.SeasonDungeons = { S1 = mplusDungeons_120,  S2 = mplusDungeons_121 }
+CCS.SEASON_ORDER   = { "S1", "S2" }
+
+-- Season defaults to the current patch's season, session-only (no saved var):
+-- S2 on 12.1+, S1 before. Overridable at runtime via the dropdown.
+local _season = (tocVersion >= 120100) and "S2" or "S1"
+
+function CCS.GetSeason() return _season end
+
+-- Point the display views at the selected season. Registration ignores these
+-- and iterates every season, so unseen seasons still play.
+local function applySeasonViews()
+    CCS_Spells_Raid   = CCS.SeasonRaids[_season]    or CCS_Spells_Raid_S1
+    CCS.MplusDungeons = CCS.SeasonDungeons[_season] or mplusDungeons_121
+end
+
+function CCS.SetSeason(season)
+    if not CCS.SeasonRaids[season] then return end
+    _season = season
+    applySeasonViews()
+    if CCS.ApplyModule then CCS.ApplyModule() end
+    CCS.RefreshAll()
+    if CCS._fullRebuild then CCS._fullRebuild() end
+end
+
+applySeasonViews()
 
 local db
 
@@ -610,12 +662,12 @@ function CCS.IsAbilityActive(abilityKey)
         return nil  -- not found in this set
     end
 
-    if CCS_Spells_Raid then
-        local r = scan(CCS_Spells_Raid)
+    for _, season in ipairs(CCS.SEASON_ORDER) do
+        local r = scan(CCS.SeasonRaids[season] or {})
         if r ~= nil then return r end
     end
-    if CCS.MplusDungeons then
-        for _, dungeon in ipairs(CCS.MplusDungeons) do
+    for _, season in ipairs(CCS.SEASON_ORDER) do
+        for _, dungeon in ipairs(CCS.SeasonDungeons[season] or {}) do
             local data = dungeon.data()
             if data then
                 local r = scan(data)
@@ -1111,7 +1163,7 @@ local function registerAbility(ability, diff, bossKey)
     if not hasGeneralAuraSounds then
         for _, spellID in ipairs(ids) do
             if not C_UnitAuras.AuraIsPrivate(spellID) then
-                if diff then
+                if diff and CCS._auraSoundLog then
                     print("|cffff9900CCS:|r " .. ability.key .. " (spellID " .. spellID .. ") is not a private aura — skipping.")
                 end
                 return
@@ -1164,23 +1216,31 @@ local function registerAll()
     local diff = getCurrentDifficulty()
     if not diff then return end
     local instType = getInstanceType()
+    local zone     = getInstanceZone()
 
+    -- Register only the current zone's sounds, across every season (so the
+    -- season dropdown never affects what plays). entryInZone lets entries with
+    -- no zoneID through, so unmarked data still registers.
     if instType == "raid" then
-        for _, entry in ipairs(CCS_Spells_Raid) do
-            if entry.abilities then
-                for _, ability in ipairs(entry.abilities) do
-                    registerAbility(ability, diff, entry.bossKey)
+        for _, season in ipairs(CCS.SEASON_ORDER) do
+            for _, entry in ipairs(CCS.SeasonRaids[season] or {}) do
+                if entry.abilities and entryInZone(entry, zone) then
+                    for _, ability in ipairs(entry.abilities) do
+                        registerAbility(ability, diff, entry.bossKey)
+                    end
                 end
             end
         end
     elseif instType == "party" and CCS.MPLUS_ENABLED then
-        for _, dungeon in ipairs(CCS.MplusDungeons) do
-            local data = dungeon.data()
-            if data then
-                for _, entry in ipairs(data) do
-                    if entry.abilities then
-                        for _, ability in ipairs(entry.abilities) do
-                            registerAbility(ability, diff, entry.bossKey)
+        for _, season in ipairs(CCS.SEASON_ORDER) do
+            for _, dungeon in ipairs(CCS.SeasonDungeons[season] or {}) do
+                local data = dungeon.data()
+                if data then
+                    for _, entry in ipairs(data) do
+                        if entry.abilities and entryInZone(entry, zone) then
+                            for _, ability in ipairs(entry.abilities) do
+                                registerAbility(ability, diff, entry.bossKey)
+                            end
                         end
                     end
                 end
@@ -1295,6 +1355,11 @@ end
 
 function CCS.DebugSounds()
     local count = 0
+    -- Show the zone the game reports, so data-file zoneIDs can be confirmed
+    -- against reality (this is the instanceID, the 8th GetInstanceInfo return).
+    local name, instType = GetInstanceInfo()
+    print(("|cffffff00CCS Debug — Zone:|r %s  |cffaaaaaa(id %s, type %s)|r")
+        :format(tostring(name), tostring(getInstanceZone()), tostring(instType)))
     print("|cffffff00CCS Debug — Registered Sounds:|r")
     for key, ids in pairs(handles) do
         print("  " .. key .. ": " .. #ids .. " handle(s) — " .. table.concat(ids, ", "))

@@ -11,7 +11,7 @@ CCS = CCS or {}
 local basePath = "Interface\\AddOns\\" .. addonName .. "\\sounds\\"
 
 local lsmSounds = {
-    "break","breath","burn","dot","marked","move","soak","spread","targeted","drop","fixate","pull","stack","absorb","debuff","charge","clear","knock","spikes","skull","cross","square","moon","triangle","diamond","star","circle","in","out","right","left","magic","curse","poison","bleed"
+    "break","breath","burn","dot","marked","move","soak","spread","targeted","drop","fixate","pull","stack","safe","absorb","debuff","damage","heal","slow","charge","clear","knock","spikes","skull","cross","square","moon","triangle","diamond","star","circle","in","out","right","left","magic","curse","poison","bleed","taunt"
 }
 
 -- The colour goes INTO the registered LSM name, because that name is what every
@@ -51,10 +51,10 @@ end
 --
 -- Order of the groups here is the order they appear in the picker.
 CCS.SOUND_GROUPS = {
-    { color = "|cffe8b3b3", names = { "debuff", "bleed", "poison", "magic", "curse", "dot", "absorb" } },       -- slight red
-    { color = "|cffb3e0b8", names = { "in", "out", "right", "left","move" } },                                          -- slight green
-    { color = "|cffd8b8e8", names = { "drop", "soak", "spread", "stack", "break", "burn" } },            -- slight purple
-    { color = "|cffe8dfa8", names = { "breath", "charge", "fixate", "marked", "targeted", "knock", "pull", "spikes" } }, -- slight yellow
+    { color = "|cffe8b3b3", names = { "absorb", "bleed", "curse", "debuff", "dot", "magic", "poison", "slow" } },       -- slight red
+    { color = "|cffb3e0b8", names = { "in", "left", "move", "out", "right" } },                                          -- slight green
+    { color = "|cffd8b8e8", names = { "break", "burn", "drop", "heal", "soak", "spread", "stack", "taunt" } },            -- slight purple
+    { color = "|cffe8dfa8", names = { "breath", "charge", "damage", "fixate", "knock", "marked", "pull", "safe", "spikes", "targeted" } }, -- slight yellow
 }
 
 -- Lookup: bare sound name -> { color, order } for its group. Sounds not in any

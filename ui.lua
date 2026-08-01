@@ -78,10 +78,14 @@ local function applyFont()
             refreshText(e.fs)
         end
     end
-    -- Dropdown button labels (created in widgets.lua).
+    -- Dropdown labels and menu-row fontstrings (created in widgets.lua). Button
+    -- labels use _ccsDefault{Face,Flags}; pooled menu rows use _ccsFace/_ccsFlags.
+    -- Accept either so both get re-fonted.
     for _, fs in ipairs(CCS._ddLabels or {}) do
-        setFontSafe(fs, FONT_REGULAR, fs._ccsSize or 10, fs._ccsDefaultFlags or "",
-                    fs._ccsDefaultFace, fs._ccsSize or 10, fs._ccsDefaultFlags)
+        local size  = fs._ccsSize or 10
+        local flags = fs._ccsDefaultFlags or fs._ccsFlags or ""
+        local face  = fs._ccsDefaultFace  or fs._ccsFace
+        setFontSafe(fs, FONT_REGULAR, size, flags, face, size, flags)
         refreshText(fs)
     end
     -- Template button labels (Raid, Mythic+, Help, etc.).
@@ -94,6 +98,7 @@ local function applyFont()
     -- Boxes that auto-size to their button text must re-measure after a font
     -- change, or wider glyphs overflow their fixed width.
     if CCS._sizeModuleBox then CCS._sizeModuleBox() end
+    if CCS._sizeSeasonBox then CCS._sizeSeasonBox() end
     if CCS._sizeWarnBox   then CCS._sizeWarnBox()   end
     if CCS._sizeCdBox     then CCS._sizeCdBox()     end
 
@@ -2024,6 +2029,45 @@ local function BuildCCSOptions(panel, isStandalone)
     raidBtn:SetScript("OnClick",  function() clearSearch(); CCS.SetModule("raid")  end)
     mplusBtn:SetScript("OnClick", function() clearSearch(); CCS.SetModule("mplus") end)
 
+    -- Season selector, to the left of the Module buttons. Chooses which season's
+    -- raid + dungeon data the list shows. Registration always covers every
+    -- season, so switching here only changes the view, never what plays.
+    local seasonBox = makeGroupBox(topBlock, moduleBox, "LEFT", -8, 0, "RIGHT")
+    seasonBox:SetSize(150, 24)
+    local seasonLbl = makeFontString(seasonBox, "ARTWORK", "GameFontNormalSmall")
+    seasonLbl:SetText("|cffccccccSeason|r")
+    seasonLbl:SetPoint("LEFT", seasonBox, "LEFT", 14, 0)
+
+    local seasonDD = CCS_CreateDropdown(seasonBox, 60, 20, 11)
+    seasonDD._noGreen  = true
+    seasonDD._noScroll = true
+    seasonDD:SetPoint("LEFT", seasonLbl, "RIGHT", 6, 0)
+    seasonDD:SetItems({
+        { label = "S1", value = "S1" },
+        { label = "S2", value = "S2" },
+    })
+    seasonDD:SetValue(CCS.GetSeason())
+    seasonDD:SetOnSelect(function(v)
+        withCombatGuard(function()
+            clearSearch()
+            CCS.SetSeason(v)
+        end)
+    end)
+    addTooltip(seasonDD, "Season",
+        "Which season's raids and dungeons to show. Sounds for all seasons stay active regardless.")
+
+    -- size the season box to its contents; anchored RIGHT so it grows left
+    local function sizeSeasonBox()
+        local lblW = seasonLbl:GetStringWidth() or 40
+        seasonBox:SetSize(14 + lblW + 6 + 60 + 10, 24)
+    end
+    seasonBox:SetScript("OnShow", function()
+        sizeSeasonBox()
+        seasonBox:SetScript("OnShow", nil)
+    end)
+    CCS._sizeSeasonBox = sizeSeasonBox
+    CCS._syncSeasonDD  = function() if seasonDD then seasonDD:SetValue(CCS.GetSeason()) end end
+
     -- Output channel dropdown (below the title) + scale slider (next to title).
     local settingsBox = CreateFrame("Frame", nil, topBlock)
     settingsBox:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, 8)
@@ -2171,6 +2215,7 @@ local function BuildCCSOptions(panel, isStandalone)
         chanDD:SetValue(CCS.GetChannel())
         refreshChanStatus()
         if scaleSlider then scaleSlider:SyncValue() end
+        if CCS._syncSeasonDD then CCS._syncSeasonDD() end
     end
 
     local function refreshModuleBtns()
@@ -2339,30 +2384,56 @@ local function BuildCCSOptions(panel, isStandalone)
     allTab:SetScript("OnClick", function() CCS.SetDungeon("__all__") end)
     tabButtons["__all__"] = allTab
 
-    for i, dungeon in ipairs(CCS.MplusDungeons) do
-        local tab = CreateFrame("Button", nil, tabStrip, "UIPanelButtonTemplate")
-        tab:SetHeight(TAB_H)
-        tab:SetPoint("TOPLEFT",  tabStrip, "TOPLEFT",  4,  -i*(TAB_H+TAB_GAP) - TAB_PAD)
-        tab:SetPoint("TOPRIGHT", tabStrip, "TOPRIGHT", -4, -i*(TAB_H+TAB_GAP) - TAB_PAD)
-        tab:SetText((dungeon.color or "") .. dungeon.label .. "|r")
-        stripButtonBorder(tab)
-        if dungeon.icon then
-            local ic = tab:CreateTexture(nil, "ARTWORK")
-            ic:SetSize(TAB_ICON, TAB_ICON)
-            ic:SetPoint("LEFT", tab, "LEFT", 5, 0)
-            ic:SetTexture(dungeon.icon)
-            ic:SetTexCoord(0.07, 0.93, 0.07, 0.93)  -- trim border
-            tab._icon = ic
+    -- Per-dungeon tabs are pooled and rebuilt from the CURRENT dungeon list, so
+    -- a season switch repopulates them instead of leaving the old season's tabs.
+    local _dgTabPool = {}
+    local function rebuildDungeonTabs()
+        -- hide all pooled per-item tabs and forget their keys
+        for k in pairs(tabButtons) do
+            if k ~= "__all__" then tabButtons[k] = nil end
         end
-        local fs = tab:GetFontString()
-        if fs then
-            fs:SetPoint("LEFT",  tab, "LEFT",  5 + TAB_ICON + 4, 0)
-            fs:SetPoint("RIGHT", tab, "RIGHT", -6, 0)
-            fs:SetJustifyH("LEFT"); fs:SetWordWrap(false); fs:SetNonSpaceWrap(false)
+        for _, t in ipairs(_dgTabPool) do t:Hide() end
+        for i, dungeon in ipairs(CCS.MplusDungeons) do
+            local tab = _dgTabPool[i]
+            if not tab then
+                tab = CreateFrame("Button", nil, tabStrip, "UIPanelButtonTemplate")
+                tab:SetHeight(TAB_H)
+                stripButtonBorder(tab)
+                _dgTabPool[i] = tab
+            end
+            tab:ClearAllPoints()
+            tab:SetPoint("TOPLEFT",  tabStrip, "TOPLEFT",  4,  -i*(TAB_H+TAB_GAP) - TAB_PAD)
+            tab:SetPoint("TOPRIGHT", tabStrip, "TOPRIGHT", -4, -i*(TAB_H+TAB_GAP) - TAB_PAD)
+            tab:SetText((dungeon.color or "") .. dungeon.label .. "|r")
+            if dungeon.icon then
+                local ic = tab._icon
+                if not ic then
+                    ic = tab:CreateTexture(nil, "ARTWORK")
+                    ic:SetSize(TAB_ICON, TAB_ICON)
+                    ic:SetPoint("LEFT", tab, "LEFT", 5, 0)
+                    tab._icon = ic
+                end
+                ic:SetTexture(dungeon.icon)
+                ic:SetTexCoord(0.07, 0.93, 0.07, 0.93)  -- trim border
+                ic:Show()
+            elseif tab._icon then
+                tab._icon:Hide()
+            end
+            local fs = tab:GetFontString()
+            if fs then
+                fs:SetPoint("LEFT",  tab, "LEFT",  5 + TAB_ICON + 4, 0)
+                fs:SetPoint("RIGHT", tab, "RIGHT", -6, 0)
+                fs:SetJustifyH("LEFT"); fs:SetWordWrap(false); fs:SetNonSpaceWrap(false)
+            end
+            local key = dungeon.key
+            tab:SetScript("OnClick", function() CCS.SetDungeon(key) end)
+            tab:Show()
+            tabButtons[key] = tab
         end
-        tab:SetScript("OnClick", function() CCS.SetDungeon(dungeon.key) end)
-        tabButtons[dungeon.key] = tab
+        -- resize strip to fit the current count
+        tabStrip:SetHeight(TAB_PAD + ((#CCS.MplusDungeons + 1) * (TAB_H + TAB_GAP)) - TAB_GAP + TAB_PAD)
     end
+    rebuildDungeonTabs()
 
     tabStrip:SetScript("OnShow", function(self)
         local maxW = 0
@@ -2421,32 +2492,57 @@ local function BuildCCSOptions(panel, isStandalone)
     raidAllTab:SetScript("OnClick", function() CCS.SetRaid("__all__") end)
     raidTabButtons["__all__"] = raidAllTab
 
-    for i, raidName in ipairs(raidList) do
-        local tab = CreateFrame("Button", nil, raidTabStrip, "UIPanelButtonTemplate")
-        tab:SetHeight(TAB_H)
-        tab:SetPoint("TOPLEFT",  raidTabStrip, "TOPLEFT",  4,  -i*(TAB_H+TAB_GAP) - TAB_PAD)
-        tab:SetPoint("TOPRIGHT", raidTabStrip, "TOPRIGHT", -4, -i*(TAB_H+TAB_GAP) - TAB_PAD)
-        local color = RAID_COLORS[raidName] or "|cffcccccc"
-        tab:SetText(color .. raidName .. "|r")
-        stripButtonBorder(tab)
-        local raidIcon = RAID_ICONS[raidName]
-        if raidIcon then
-            local ic = tab:CreateTexture(nil, "ARTWORK")
-            ic:SetSize(TAB_ICON, TAB_ICON)
-            ic:SetPoint("LEFT", tab, "LEFT", 5, 0)
-            ic:SetTexture(raidIcon)
-            ic:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-            tab._icon = ic
+    -- Per-raid tabs are pooled and rebuilt from the CURRENT raid list, so a
+    -- season switch repopulates them instead of showing the old season's raids.
+    local _raidTabPool = {}
+    local function rebuildRaidTabs()
+        for k in pairs(raidTabButtons) do
+            if k ~= "__all__" then raidTabButtons[k] = nil end
         end
-        local fs = tab:GetFontString()
-        if fs then
-            fs:SetPoint("LEFT",  tab, "LEFT",  5 + TAB_ICON + 4, 0)
-            fs:SetPoint("RIGHT", tab, "RIGHT", -6, 0)
-            fs:SetJustifyH("LEFT"); fs:SetWordWrap(false); fs:SetNonSpaceWrap(false)
+        for _, t in ipairs(_raidTabPool) do t:Hide() end
+        local list = CCS.GetRaidList()
+        for i, raidName in ipairs(list) do
+            local tab = _raidTabPool[i]
+            if not tab then
+                tab = CreateFrame("Button", nil, raidTabStrip, "UIPanelButtonTemplate")
+                tab:SetHeight(TAB_H)
+                stripButtonBorder(tab)
+                _raidTabPool[i] = tab
+            end
+            tab:ClearAllPoints()
+            tab:SetPoint("TOPLEFT",  raidTabStrip, "TOPLEFT",  4,  -i*(TAB_H+TAB_GAP) - TAB_PAD)
+            tab:SetPoint("TOPRIGHT", raidTabStrip, "TOPRIGHT", -4, -i*(TAB_H+TAB_GAP) - TAB_PAD)
+            local color = RAID_COLORS[raidName] or "|cffcccccc"
+            tab:SetText(color .. raidName .. "|r")
+            local raidIcon = RAID_ICONS[raidName]
+            if raidIcon then
+                local ic = tab._icon
+                if not ic then
+                    ic = tab:CreateTexture(nil, "ARTWORK")
+                    ic:SetSize(TAB_ICON, TAB_ICON)
+                    ic:SetPoint("LEFT", tab, "LEFT", 5, 0)
+                    tab._icon = ic
+                end
+                ic:SetTexture(raidIcon)
+                ic:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+                ic:Show()
+            elseif tab._icon then
+                tab._icon:Hide()
+            end
+            local fs = tab:GetFontString()
+            if fs then
+                fs:SetPoint("LEFT",  tab, "LEFT",  5 + TAB_ICON + 4, 0)
+                fs:SetPoint("RIGHT", tab, "RIGHT", -6, 0)
+                fs:SetJustifyH("LEFT"); fs:SetWordWrap(false); fs:SetNonSpaceWrap(false)
+            end
+            local rn = raidName
+            tab:SetScript("OnClick", function() CCS.SetRaid(rn) end)
+            tab:Show()
+            raidTabButtons[raidName] = tab
         end
-        tab:SetScript("OnClick", function() CCS.SetRaid(raidName) end)
-        raidTabButtons[raidName] = tab
+        raidTabStrip:SetHeight(TAB_PAD + ((#list + 1) * (TAB_H + TAB_GAP)) - TAB_GAP + TAB_PAD)
     end
+    rebuildRaidTabs()
 
     raidTabStrip:SetScript("OnShow", function(self)
         local maxW = 0
@@ -2480,7 +2576,13 @@ local function BuildCCSOptions(panel, isStandalone)
         local isMplus = CCS.MPLUS_ENABLED and CCS.GetModule() == "mplus"
         tabStrip:SetShown(isMplus)
         raidTabStrip:SetShown(not isMplus and #CCS.GetRaidList() > 1)
-        if isMplus then refreshTabs() else refreshRaidTabs() end
+        -- Rebuild the tab buttons from the current season's list, then re-tint
+        -- the active one. Rebuild first so a season switch repopulates them.
+        if isMplus then
+            rebuildDungeonTabs(); refreshTabs()
+        else
+            rebuildRaidTabs(); refreshRaidTabs()
+        end
         refreshModuleBtns()
     end
     syncTabVisibility()
@@ -2580,6 +2682,12 @@ local function BuildCCSOptions(panel, isStandalone)
     scrollChild = CreateFrame("Frame")
     scrollChild:SetWidth(1); scrollChild:SetHeight(1)
     scroll:SetScrollChild(scrollChild)
+
+    -- Let the login handler kick off row prewarming before the window is ever
+    -- shown, so the first open finds rows already pooled instead of building
+    -- ~1000 frames synchronously. Safe to call repeatedly; StartPrewarm no-ops
+    -- once the pool covers the current view.
+    CCS._prewarmRows = function() StartPrewarm(scrollChild) end
 
     local function updateHeaders(totalWidth)
         warnBox:ClearAllPoints()
@@ -3169,6 +3277,11 @@ initFrame:SetScript("OnEvent", function(self, event, name)
     if event == "PLAYER_LOGIN" then
         -- build the window now, after the loading screen
         ensureStandaloneWindow()
+        -- Prewarm rows a moment later, during idle after login, so the first
+        -- /ccs open is cheap. Deferred so it never competes with login work.
+        C_Timer.After(1, function()
+            if CCS._prewarmRows then CCS._prewarmRows() end
+        end)
         self:UnregisterEvent("PLAYER_LOGIN")
         return
     end

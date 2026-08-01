@@ -204,6 +204,7 @@ local function CCS_GetOrCreatePopup()
     end)
     track:SetScript("OnMouseUp", function() track:SetScript("OnUpdate", nil) end)
 
+    CCS._ddLabels = CCS._ddLabels or {}
     for i = 1, MAX_VISIBLE do
         local row = CreateFrame("Button", nil, clipper)
         row:SetHeight(ROW_H)
@@ -212,6 +213,11 @@ local function CCS_GetOrCreatePopup()
         row._check:SetWidth(14)
         row._check:SetJustifyH("LEFT")
         row._text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        -- Register both fontstrings so applyFont re-fonts them. Pooled menu rows
+        -- weren't reachable before, so rows scrolled into view after the early
+        -- font passes kept the template font ("cutoff further down the list").
+        CCS._ddLabels[#CCS._ddLabels + 1] = row._text
+        CCS._ddLabels[#CCS._ddLabels + 1] = row._check
         -- Capture the concrete face/size/flags now, so a pooled row that
         -- previewed a custom font can always restore exactly, without relying
         -- on SetFontObject resolving a name string.
