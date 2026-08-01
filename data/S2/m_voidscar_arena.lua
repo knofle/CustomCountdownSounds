@@ -9,11 +9,11 @@ CCS_Spells_Mplus_VoidscarArena = {
         journalInstanceID = 1313,
         journalEncounterID = 2791,         
         abilities = {
-            { key = "va_nether_dash",               label = "Nether Dash",                      privateID = 1222098,                soundM = "file:dash" },
-            { key = "va_nether_dash_dot",           label = "Nether Dash (dot)",                privateID = 1222103,                soundM = "file:dot",                     advanced = true },
+            --{ key = "va_nether_dash",               label = "Nether Dash (target?)",            privateID = 1222098,                soundM = {"file:dash","file:7s"} }, -- no debuff
+            { key = "va_nether_dash_dot",           label = "Nether Dash (dot)",                privateID = 1222103,                soundM = nil,                           advanced = true },
             { key = "va_void_fissure",              label = "Void Fissure",                     privateID = 1296967,                soundM = nil,                            advanced = true },
-            { key = "va_dark_rift_1",               label = "Dark Rift 1",                      privateID = 1262283,                soundM = nil,                            advanced = true    }, -- Private aura
-            { key = "va_dark_rift_2",               label = "Dark Rift 2",                      privateID = 1222305,                soundM = nil,                            advanced = true    }, -- Private aura
+            --{ key = "va_dark_rift_1",               label = "Dark Rift 1",                      privateID = 1262283,                soundM = nil,                            advanced = true    }, -- Private aura
+            --{ key = "va_dark_rift_2",               label = "Dark Rift 2",                      privateID = 1222305,                soundM = nil,                            advanced = true    }, -- Private aura
         },
     },
 
@@ -25,6 +25,8 @@ CCS_Spells_Mplus_VoidscarArena = {
         journalInstanceID = 1313,
         journalEncounterID = 2792,         
         abilities = {
+            --{ key = "va_noxious_breath",            label = "Noxious Breath (target?)",         privateID = 1222721,                 soundM = "file:breath",                                     },-- No debuff
+            
             { key = "va_mind_numbing_poison",       label = "Mind-Numbing Poison",              privateID = 1263971,                soundM = nil,                            advanced = true },
             { key = "va_hulking_claw",              label = "Hulking Claw",                     privateID = 1222642,                soundM = nil,                            advanced = true },
             { key = "va_toxic_aura",                label = "Toxic Aura",                       privateID = 1222692,                soundM = nil,                            advanced = true },
@@ -43,12 +45,18 @@ CCS_Spells_Mplus_VoidscarArena = {
         journalEncounterID = 2793,         
         abilities = {
             { key = "va_unstable_singularity",      label = "Unstable Singularity",             privateID = 1264188,                soundM = nil,                            advanced = true    },
-            { key = "va_cosmic_crash",              label = "Cosmic Crash",                     privateID = 1300372,                soundM = nil,                            advanced = true },
-            { key = "va_cosmic_crash_2",            label = "Cosmic Crash 2",                   privateID = 1227197,                soundM = nil,                            advanced = true    }, -- Private aura
+            { key = "va_cosmic_crash",              label = "Cosmic Crash (Dot)",               privateID = 1300372,                soundM = nil,                            advanced = true },
+            --{ key = "va_cosmic_crash_2",            label = "Cosmic Crash (Target?)",           privateID = 1227264,                soundM = "file:spread",                                  }, -- Private aura
+            --{ key = "va_gravitic_orbs",             label = "Gravitic Orbs",                    privateID = 1223298,                soundM = "file:fixate",                                  }, -- Private aura
+            { key = "va_dark_waves",                label = "Dark Waves",                       privateID = 1311933,                soundM = "file:breath",                                  }, -- Private aura
+
+
             { key = "va_unstable_singularity_2",    label = "Unstable Singularity 2",           privateID = 1248130,                soundM = nil,                            advanced = true    }, -- Private aura
-            { key = "va_condensed_mass",            label = "Condensed Mass",                   privateID = 1287450,                soundM = "file:mass" }, -- Important one to track
+            { key = "va_condensed_mass",            label = "Condensed Mass",                   privateID = 1287450,                soundM = "file:fixate" }, -- Important one to track
             { key = "va_condensed_mass_stack",      label = "Condensed Mass (stack)",           privateID = 1263983,                soundM = nil,                            advanced = true    }, -- Maybe stacking variant
-            { key = "va_void_cascade",              label = "Void Cascade",                     privateID = 1227247,                soundM = nil,                            advanced = true },
+            
+            --{ key = "va_void_cascade_t",            label = "Void Cascade (Target?)",           privateID = {1222755,1222756,1222758},   soundM = "targeted",                            }, -- no debuff
+            --{ key = "va_void_cascade",              label = "Void Cascade",                     privateID = 1227247,                soundM = "file:ticking_3s",                             }, -- no debuff
             { key = "va_atomized",                  label = "Atomized",                         privateID = 1310026,                soundM = nil,                            advanced = true },
         },
     },
@@ -60,19 +68,33 @@ CCS_Spells_Mplus_VoidscarArena = {
         section = "Trash mob abilities",
         abilities = {
             { key = "va_proof_of_mastery",          label = "Proof of Mastery",                 privateID = 1298902,                soundM = nil,                            advanced = true    }, -- Persistent kill buff
-            { key = "va_dreadbellow",               label = "Dreadbellow",                      privateID = 1252406,                soundM = nil,                            advanced = true    },
-            { key = "va_shred_defense",             label = "Shred Defense",                    privateID = 1233535,                soundM = nil,                            advanced = true    },
-            { key = "va_melt_armor",                label = "Melt Armor",                       privateID = 1250043,                soundM = nil,                            advanced = true    },
-            { key = "va_brutalize",                 label = "Brutalize",                        privateID = 1300243,                soundM = nil,                            advanced = true    },
-            { key = "va_corrosive_essence",         label = "Corrosive Essence",                privateID = 1289258,                soundM = nil,                            advanced = true    },
-            { key = "va_void_beam",                 label = "Void Beam",                        privateID = 1300138,                soundM = nil,                            advanced = true    },
-            { key = "va_protected",                 label = "Protected",                        privateID = 1250023,                soundM = nil,                            advanced = true    },
-            { key = "va_venomous_spit",             label = "Venomous Spit",                    privateID = 1249712,                soundM = nil,                            advanced = true },
-            { key = "va_null_eruption",             label = "Null Eruption",                    privateID = 1299913,                soundM = nil,                            advanced = true    },
-            { key = "va_ravenous_swarm",            label = "Ravenous Swarm",                   privateID = 1234833,                soundM = nil,                            advanced = true    },
-            { key = "va_savage_leap",               label = "Savage Leap",                      privateID = 1267894,                soundM = nil,                            advanced = true    },
+            
             { key = "va_demoralizing_shout",        label = "Demoralizing Shout",               privateID = 1298899,                soundM = nil,                            advanced = true },
+            
+            { key = "va_savage_leap",               label = "Savage Leap",                      privateID = 1267894,                soundM = nil,                            advanced = true    },
+            { key = "va_null_eruption_t",           label = "Null Eruption (Target)",           privateID = 1299905,                soundM = {"file:out","file:5s"},                            },
+            { key = "va_null_eruption_dot",         label = "Null Eruption (Dot)",              privateID = 1299913,                soundM = nil,                            advanced = true },
+
+            { key = "va_venomous_spit",             label = "Venomous Spit",                    privateID = 1249712,                soundM = nil,                            advanced = true },
+            { key = "va_disrupting_blast",          label = "Disrupting Blast",                 privateID = 1311730,                soundM = nil,                            advanced = true },
+
+            { key = "va_shred_defense",             label = "Shred Defense",                    privateID = 1233535,                soundM = nil,                            advanced = true    },            
+            { key = "va_melt_armor",                label = "Melt Armor",                       privateID = 1250043,                soundM = nil,                            advanced = true    },
+            { key = "va_ravenous_swarm",            label = "Ravenous Swarm",                   privateID = 1234833,                soundM = nil,                            advanced = true    },
+            { key = "va_violent_sand",              label = "Violent Sand",                     privateID = 1249621,                soundM = nil,                            advanced = true    },
+            { key = "va_void_beam",                 label = "Void Beam",                        privateID = 1300138,                soundM = "file:targeted",                                   },
+
             { key = "va_macestorm",                 label = "Macestorm",                        privateID = 1310309,                soundM = "file:fixate" },
+
+            
+            { key = "va_dreadbellow",               label = "Dreadbellow",                      privateID = 1252406,                soundM = nil,                            advanced = true    },
+            { key = "va_brutalize",                 label = "Brutalize",                        privateID = 1300243,                soundM = nil,                            advanced = true    },
+            { key = "va_rip_and_slice",             label = "Rip and Slice",                    privateID = 1311778,                soundM = nil,                            advanced = true    },
+            { key = "va_corrosive_essence",         label = "Corrosive Essence",                privateID = 1289258,                soundM = nil,                            advanced = true    },
+
+           
+
+            --{ key = "va_protected",                 label = "Protected",                        privateID = 1250023,                soundM = nil,                            advanced = true    },
         },
     },
 }

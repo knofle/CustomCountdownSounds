@@ -1,8 +1,6 @@
 -- data/r_the_tidebound_grotto.lua
 -- The Tidebound Grotto (12.1.0 single boss raid).
 
-local _, _, _, tocVersion = GetBuildInfo()
-if tocVersion < 120100 then return end
 
 local entries = {
     {
@@ -30,5 +28,5 @@ local entries = {
 }
 
 for _, e in ipairs(entries) do
-    CCS_Spells_Raid[#CCS_Spells_Raid + 1] = e
+    CCS_Spells_Raid_S2[#CCS_Spells_Raid_S2 + 1] = e
 end

@@ -9,9 +9,9 @@ CCS_Spells_Mplus_BlindingVale = {
         journalInstanceID = 1309,
         journalEncounterID = 2769,        
         abilities = {
-            { key = "bv_thornblade",                label = "Thornblade (Short)",               privateID = 1261276,                soundM = "file:bleed",                            advanced = true },
-            { key = "bv_thornblade_2",              label = "Thornblade (Long)",                privateID = 1235865,                soundM = "file:bleed",                            advanced = true },
-            { key = "bv_bedrock_surge",             label = "Bedrock Surge",                    privateID = 1276586,                soundM = "file:dot",                            advanced = true },
+            { key = "bv_thornblade",                label = "Thornblade (Jump)",                privateID = 1261276,                soundM = {"file:out","file:3s"},                            },
+            { key = "bv_thornblade_2",              label = "Thornblade (Dot)",                 privateID = 1235865,                soundM = nil,                            advanced = true },
+            { key = "bv_bedrock_surge",             label = "Bedrock Surge",                    privateID = 1276586,                soundM = nil,                            advanced = true },
             { key = "bv_lightblossom_beam",         label = "Lightblossom Beam",                privateID = 1235574,                soundM = nil,                            advanced = true },
             { key = "bv_fertile_loam",              label = "Fertile Loam",                     privateID = 1234802,                soundM = nil,                            advanced = true },
             { key = "bv_light_scorched_earth",      label = "Light-Scorched Earth",             privateID = 1235828,                soundM = nil,                            advanced = true },
@@ -28,7 +28,7 @@ CCS_Spells_Mplus_BlindingVale = {
         abilities = {
             { key = "bv_bloodthirsty_gaze",         label = "Bloodthirsty Gaze",                privateID = 1237091,                soundM = "fixate" },
             { key = "bv_bloodthorn_roots",          label = "Bloodthorn Roots",                 privateID = 1259365,                soundM = "file:root" },
-            { key = "bv_verdant_stomp",             label = "Verdant Stomp",                    privateID = 1236747,                soundM = nil,                            advanced = true },
+            { key = "bv_verdant_stomp",             label = "Verdant Stomp (Root)",             privateID = 1236747,                soundM = {nil,"file:4s"}                             },
             { key = "bv_incise",                    label = "Incise",                           privateID = 1237267,                soundM = "file:bleed",                   advanced = true }, -- Private aura
             { key = "bv_crunched",                  label = "Crunched",                         privateID = 1272290,                soundM = "file:stun",                    advanced = true }, -- Private aura
         },
@@ -42,10 +42,10 @@ CCS_Spells_Mplus_BlindingVale = {
         journalInstanceID = 1309,
         journalEncounterID = 2771,       
         abilities = {
-            { key = "bv_pulverizing_strikes",       label = "Pulverizing Strikes",              privateID = 1240222,                soundM = "targeted" },
-            { key = "bv_grievous_thrash",           label = "Grievous Thrash",                  privateID = 1241058,                soundM = nil,                            advanced = true },
+            { key = "bv_pulverizing_strikes",       label = "Pulverizing Strikes",              privateID = 1240222,                soundM = "file:breath" },
+            { key = "bv_grievous_thrash",           label = "Grievous Thrash",                  privateID = 1241058,                soundM = "file:heal",                                },
             { key = "bv_pulverized",                label = "Pulverized",                       privateID = 1257094,                soundM = nil,                            advanced = true },
-            { key = "bv_lightfire",                 label = "Lightfire",                        privateID = 1239825,                soundM = {"file:drop","file:6s" } },
+            { key = "bv_lightfire",                 label = "Lightfire",                        privateID = 1239825,                soundM = {"file:spikes","file:6s" } },
             { key = "bv_lightfire_beams",           label = "Lightfire Beams",                  privateID = 1239919,                soundM = nil,                            advanced = true }, -- Private aura
             { key = "bv_hunting_leap",              label = "Hunting Leap",                     privateID = 1303039,                soundM = nil,                            advanced = true    },
         },
@@ -62,7 +62,8 @@ CCS_Spells_Mplus_BlindingVale = {
             { key = "bv_lightblooms_might",         label = "Lightbloom's Might",               privateID = 1247052,                soundM = nil,                            advanced = true },
             { key = "bv_thornspike",                label = "Thornspike",                       privateID = 1247746,                soundM = nil,                            advanced = true },
             { key = "bv_lightsap",                  label = "Lightsap",                         privateID = 1246753,                soundM = nil,                            advanced = true },
-            --{ key = "bv_concentrated_lightbeam",    label = "Concentrated Lightbeam",           privateID = 1246751,                soundM = nil,                            advanced = true    }, used on boss
+            { key = "bv_concentrated_lightbeam",    label = "Concentrated Lightbeam (Target)",  privateID = {1246607,1253690,1253694},       soundM = {"file:beam","file:5s"},               }, --probably wrong ID
+            { key = "bv_concentrated_lightbeam_d",  label = "Concentrated Lightbeam (Damage)",  privateID = 1246751,                soundM = nil,                            advanced = true }, 
         },
     },
 
@@ -79,6 +80,8 @@ CCS_Spells_Mplus_BlindingVale = {
             { key = "bv_ruptured_earth",            label = "Ruptured Earth",                   privateID = 1237858,                soundM = nil,                            advanced = true    },
             { key = "bv_toxic_spew",                label = "Toxic Spew",                       privateID = 1250937,                soundM = nil,                            advanced = true    },
             { key = "bv_thornblade_trash",          label = "Thornblade",                       privateID = 1238076,                soundM = nil,                            advanced = true },
+            { key = "bv_disorienting_screech",      label = "Disorienting Screech",             privateID = 1238294,                soundM = nil,                           advanced = true },
+
         },
     },
 }

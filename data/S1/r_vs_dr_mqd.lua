@@ -12,8 +12,6 @@
 --
 -- Difficulty: soundH = Heroic, soundM = Mythic. nil silences that diff.
 
-local _, _, _, tocVersion = GetBuildInfo()
-if tocVersion >= 120100 then return end
 
 -- TEST: Plexus Sentinel — toggled in/out via /ccs plexus (off by default).
 CCS = CCS or {}
@@ -38,6 +36,7 @@ local entries = {
         raid    = "The Voidspire",
         boss    = "Imperator Averzian",
         bossKey = "imperator_averzian",
+        zoneID  = 2912,
         section = "|cffc17de8Imperator Averzian|r",
         abilities = {
             { key = "marked",                   label = "Void Marked",                      privateID = 1280023,                soundH = "file:break_add",                  soundM = "file:break_add"                                   }, -- Debuff to break adds
@@ -54,6 +53,7 @@ local entries = {
         raid    = "The Voidspire",
         boss    = "Vorasius",
         bossKey = "vorasius",
+        zoneID  = 2912,
         section = "|cffc17de8Vorasius|r",
         abilities = {
             { key = "vorasius_fixate",          label = "Fixate",                           privateID = 1254113,                soundH = "fixate",                          soundM = "fixate"                                           }, -- Vorasius Fixate
@@ -67,6 +67,7 @@ local entries = {
         raid    = "The Voidspire",
         boss    = "Fallen-King Salhadaar",
         bossKey = "fallen_king_salhadaar",
+        zoneID  = 2912,
         section = "|cffc17de8Fallen-King Salhadaar|r",
         abilities = {
             { key = "despotic_command",         label = "Despotic Command",                 privateID = 1248697,                soundH = {"drop","file:11s"},               soundM = {"drop","file:12s"},                               }, -- Puddles
@@ -87,6 +88,7 @@ local entries = {
         raid    = "The Voidspire",
         boss    = "Vaelgor & Ezzorak",
         bossKey = "vaelgor_ezzorak",
+        zoneID  = 2912,
         section = "|cffc17de8Vaelgor & Ezzorak|r",
         abilities = {
             { key = "breath",                   label = "Dread Breath",                     privateID = 1255612,                soundH = {"breath","file:7s"},              soundM = {"breath","file:6s"},                              }, -- Fear Breath
@@ -106,6 +108,7 @@ local entries = {
         raid    = "The Voidspire",
         boss    = "Lightblinded Vanguard",
         bossKey = "lightblinded_vanguard",
+        zoneID  = 2912,
         section = "|cffc17de8Lightblinded Vanguard|r",
         abilities = {
             { key = "avengers_shield",          label = "Avenger's Shield",                     privateID = 1246487,                soundH = {"spread","file:6s"},              soundM = {"spread","file:6s"},                              }, -- Dispell debuff
@@ -124,6 +127,8 @@ local entries = {
         raid    = "The Voidspire",
         boss    = "Crown of the Cosmos",
         bossKey = "crown_of_the_cosmos",
+        zoneID  = 2912,
+        
         section = "|cffc17de8Crown of the Cosmos|r",
         abilities = {
             { key = "silverstrike_arrow",       label = "Silverstrike Arrow",               privateID = 1233602,                        soundH = {"file:arrow","file:6s"},      soundM = {"file:arrow","file:6s"} ,                     }, -- P1 arrow
@@ -152,6 +157,7 @@ local entries = {
         raid    = "The Dreamrift",
         boss    = "Chimaerus the Undreamt God",
         bossKey = "chimaerus",
+        zoneID  = 2939,
         section = "|cff6aacdcChimaerus the Undreamt God|r",
         abilities = {
             { key = "rift_madness",             label = "Rift Madness",                     privateID = 1264756,        soundH = "file:madness",                      soundM = {"file:madness","file:5s"}                               }, -- Rift Madness
@@ -169,6 +175,7 @@ local entries = {
         raid    = "March on Quel'Danas",
         boss    = "Belo'ren, Child of Al'ar",
         bossKey = "belo_ren",
+        zoneID  = 2913,
         section = "|cff6fcf6fBelo'ren, Child of Al'ar|r",
         abilities = {
             { key = "void_dive",                label = "Void Dive",                        privateID = 1241339,        soundH = {"file:void_dive", "file:8s"},       soundM = {"file:void_dive", "file:8s"},                           }, -- Void Soak
@@ -188,6 +195,7 @@ local entries = {
         raid    = "March on Quel'Danas",
         boss    = "Midnight Falls",
         bossKey = "midnight_falls",
+        zoneID  = 2913,
         section = "|cff6fcf6fMidnight Falls|r",
         abilities = {
             { key = "dark_rune",                label = "Dark Rune",                        privateID = 1249609,                soundH = {"file:rune","file:10s"},    soundM = {"file:rune","file:10s"}                                 }, -- Dark Rune, indiscriminate of which
@@ -207,5 +215,5 @@ local entries = {
 }
 
 for _, e in ipairs(entries) do
-    CCS_Spells_Raid[#CCS_Spells_Raid + 1] = e
+    CCS_Spells_Raid_S1[#CCS_Spells_Raid_S1 + 1] = e
 end

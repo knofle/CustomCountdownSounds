@@ -2,7 +2,7 @@
 -- Sporefall raid (12.0.7 – 12.0.x).
 
 local _, _, _, tocVersion = GetBuildInfo()
-if tocVersion < 120007 or tocVersion >= 120100 then return end
+
 
 local sporefall = {
 
@@ -10,6 +10,7 @@ local sporefall = {
         raid    = "Sporefall",
         boss    = "Rotmire",
         bossKey = "rotmire",
+        zoneID  = 1592,
         section = "|cffb8c777Rotmire|r",
         abilities = {
             { key = "shroomling_fixate",    label = "Shroomling Fixate",    privateID = 1221639, soundH = "file:shroomling",        soundM = "file:shroomling", desc = "Purple adds that fixate you. Do not kill Shroomlings and Funglings in the same place!"     }, 
@@ -26,5 +27,5 @@ local sporefall = {
 }
 
 for _, entry in ipairs(sporefall) do
-    CCS_Spells_Raid[#CCS_Spells_Raid + 1] = entry
+    CCS_Spells_Raid_S1[#CCS_Spells_Raid_S1 + 1] = entry
 end

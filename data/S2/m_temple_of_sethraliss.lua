@@ -10,9 +10,9 @@ CCS_Spells_Mplus_TempleOfSethraliss = {
         journalEncounterID = 2142,          
         abilities = {
             { key = "tos_gust",                     label = "Gust",                             privateID = 1288457,                soundM = nil,                               advanced = true },
-            { key = "tos_gale_force",               label = "Gale Force",                       privateID = 1289059,                soundM = {nil,"file:3,5s" } },
+            { key = "tos_gale_force",               label = "Gale Force",                       privateID = 1289059,                soundM = {nil,"file:3,5sfull" } },
 
-            { key = "tos_thunder_lightning",        label = "Thunder and Lightning",            privateID = 1288074,                soundM = {"file:soak","file:4s" } },
+            { key = "tos_thunder_lightning",        label = "Thunder and Lightning",            privateID = 1288074,                soundM = {"file:soak","file:4,5s" } },
             { key = "tos_tempest_winds_target",     label = "Tempest Winds (target)",           privateID = {1288874 },             soundM = {"file:drop","file:5s" } },
 
 

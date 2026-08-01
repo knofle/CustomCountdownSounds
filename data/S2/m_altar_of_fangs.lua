@@ -9,9 +9,9 @@ CCS_Spells_Mplus_AltarOfFangs = {
         journalInstanceID = 1322,
         journalEncounterID = 2878,
         abilities = {
-            { key = "carrion_burst",                label = "Carrion Burst",                    privateID = 1307700,                soundM = "file:break" },
+            { key = "carrion_burst",                label = "Carrion Burst",                    privateID = 1307700,                soundM = nil,                           advanced = true },
             { key = "triple_shot",                  label = "Triple Shot",                      privateID = 1297876,                soundM = "file:spread" },
-            { key = "regurgitate",                  label = "Regurgitate",                      privateID = 1296069,                soundM = nil,                             advanced = true },
+            { key = "regurgitate",                  label = "Regurgitate",                      privateID = 1296069,                soundM = nil,                           advanced = true },
         },
     },
 
@@ -23,13 +23,13 @@ CCS_Spells_Mplus_AltarOfFangs = {
         journalInstanceID = 1322,
         journalEncounterID = 2879,        
         abilities = {
-            { key = "spiteful_hunt",                label = "Spiteful Hunt",                    privateID = 1300503,                soundM = nil, advanced = true }, -- Fixate 15s
+            { key = "spiteful_hunt",                label = "Spiteful Hunt",                    privateID = 1300503,                soundM = nil,                           advanced = true }, -- Fixate 15s
             { key = "toxic_atrophy",                label = "Toxic Atrophy",                    privateID = 1310974,                soundM = nil,                           advanced = true },
-            { key = "synchronized_venom",           label = "Synchronized Venom",               privateID = 1299189,                soundM = "file:dot",                    advanced = true },
+            { key = "synchronized_venom",           label = "Synchronized Venom",               privateID = 1299189,                soundM = nil,                           advanced = true },
             --{ key = "spiteful_venom",               label = "Spiteful Venom",                   privateID = 1305368,                soundM = "file:dot",                        advanced = true, desc = "Stacking poison from a snake that caught you. Avoid getting hit." }, -- REMOVED: Uncoiled Writhes no longer apply Spiteful Venom
             { key = "death_rattle",                 label = "Death Rattle",                     privateID = 1299080,                soundM = "file:break" }, -- Stacking dot
-            { key = "corrosive_fangs",              label = "Corrosive Fangs",                  privateID = 1294845,                soundM = "file:dot",                    advanced = true    },
-            { key = "vine_grip",                    label = "Vine Grip",                        privateID = {1300328,1287798,1287797 },   soundM = nil,                      advanced = true }, -- M
+            { key = "corrosive_fangs",              label = "Corrosive Fangs",                  privateID = 1294845,                soundM = nil,                           advanced = true    },
+            { key = "vine_grip",                    label = "Vine Grip",                        privateID = {1300328,1287798,1287797 },   soundM = nil,                     advanced = true }, -- M
         },
     },
 
@@ -59,8 +59,8 @@ CCS_Spells_Mplus_AltarOfFangs = {
             { key = "paralyzing_shots",             label = "Paralyzing Shots",                 privateID = 1294569,                soundM = "file:poison",                                        },
             { key = "toxic_breath",                 label = "Toxic Breath",                     privateID = 1306669,                soundM = nil,                               advanced = true    },
             { key = "piercing_hiss",                label = "Piercing Hiss",                    privateID = 1294557,                soundM = nil,                               advanced = true    },
-            { key = "blood_sacrifice",              label = "Blood Sacrifice",                  privateID = 1306550,                soundM = "file:absorb",                     advanced = true    },
-            { key = "envenom",                      label = "Envenom",                          privateID = 1307571,                soundM = "file:dot",                        advanced = true   },
+            { key = "blood_sacrifice",              label = "Blood Sacrifice",                  privateID = 1306550,                soundM = nil,                     advanced = true    },
+            { key = "envenom",                      label = "Envenom",                          privateID = 1307571,                soundM = nil,                        advanced = true   },
             { key = "bloodletting_trash",           label = "Bloodletting (trash)",             privateID = 1307531,                soundM = nil,                               advanced = true    },
             { key = "laced_edge",                   label = "Laced Edge",                       privateID = 1308518,                soundM = nil,                               advanced = true    },
             { key = "infest",                       label = "Infest",                           privateID = 1308865,                soundM = {"file:infest","file:6s" }     },
