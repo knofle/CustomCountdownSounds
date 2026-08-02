@@ -215,6 +215,7 @@ local function stripCheckBorder(cb)
         addBorderHighlight(cb, border)
     end
 end
+CCS._stripCheckBorder = stripCheckBorder
 
 local function setAdvancedCbBorder(cb, isAdvanced)
     if not cb or not cb._ccsBorder then return end
@@ -512,8 +513,8 @@ local ARROW_PATH = CCS.MEDIA_DIR
 -- and it sits one frame level below its parent so it can never cover content.
 -- Needs media\shadow.tga, which must be a border (edgeFile) texture.
 local SHADOW_TEXTURE = ARROW_PATH .. "shadow"
-local SHADOW_SIZE    = 16    -- edgeSize; larger = wider, softer falloff
-local SHADOW_ALPHA   = 0.55  -- lower = subtler
+local SHADOW_SIZE    = 15    -- edgeSize; larger = wider, softer falloff
+local SHADOW_ALPHA   = 0.20  -- lower = subtler
 
 function CCS.AddShadow(frame, size, alpha)
     if not frame or frame._shadow then return frame and frame._shadow end
@@ -2957,13 +2958,14 @@ local function CreateStandaloneWindow()
         self:ClearAllPoints()
         self:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
     end)
+    -- Hard square edges (matches the profiles window): a 1px WHITE8X8 border on
+    -- the backdrop's own fill, so corners stay crisp with no bg protrusion.
     win:SetBackdrop({
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        edgeSize = 10, insets = { left=3, right=3, top=3, bottom=3 },
+        bgFile   = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1,
     })
+    win:SetBackdropColor(0.1, 0.1, 0.1, 0.98)
     win:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
-    local bg = win:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(); bg:SetColorTexture(0.1, 0.1, 0.1, 0.98)
     CCS.AddShadow(win)
     win:Hide()
     tinsert(UISpecialFrames, "CCSStandaloneWindow")

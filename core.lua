@@ -244,6 +244,75 @@ end
 
 -- Serialize the named profile (or current) into a printable string.
 -- Returns string, or nil + error message.
+-- Selective export support
+--------------------------------------------------
+-- Map every ability key to the instance (raid or dungeon) it belongs to, per
+-- season, built straight from the data so it works regardless of key naming.
+-- Shape: map[key] = { season=, kind="raid"|"dungeon", instance=<name> }
+function CCS.BuildKeyInstanceMap()
+    local map = {}
+    for _, season in ipairs(CCS.SEASON_ORDER) do
+        for _, entry in ipairs(CCS.SeasonRaids[season] or {}) do
+            local inst = entry.raid
+            if entry.abilities and inst then
+                for _, ab in ipairs(entry.abilities) do
+                    if ab.key then
+                        map[ab.key] = { season = season, kind = "raid", instance = inst }
+                    end
+                end
+            end
+        end
+        for _, dungeon in ipairs(CCS.SeasonDungeons[season] or {}) do
+            local data = dungeon.data()
+            if data then
+                for _, entry in ipairs(data) do
+                    local inst = dungeon.label
+                    if entry.abilities and inst then
+                        for _, ab in ipairs(entry.abilities) do
+                            if ab.key then
+                                map[ab.key] = { season = season, kind = "dungeon", instance = inst }
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return map
+end
+
+-- Instance names for a season, split into raids and dungeons, in display order.
+function CCS.GetSeasonInstances(season)
+    local raids, dungeons = {}, {}
+    local seen = {}
+    for _, entry in ipairs(CCS.SeasonRaids[season] or {}) do
+        if entry.raid and not seen[entry.raid] then
+            seen[entry.raid] = true
+            raids[#raids + 1] = entry.raid
+        end
+    end
+    for _, dungeon in ipairs(CCS.SeasonDungeons[season] or {}) do
+        dungeons[#dungeons + 1] = dungeon.label
+    end
+    return raids, dungeons
+end
+
+-- Which instances a set of ability keys touches (for the import preview).
+-- Returns a sorted list of instance names.
+function CCS.InstancesForKeys(keys)
+    local map = CCS.BuildKeyInstanceMap()
+    local hit, list = {}, {}
+    for k in pairs(keys) do
+        local info = map[k]
+        if info and not hit[info.instance] then
+            hit[info.instance] = true
+            list[#list + 1] = info.instance
+        end
+    end
+    table.sort(list)
+    return list
+end
+
 function CCS.ExportProfile(profileName)
     local ser, def = getLibs()
     if not ser or not def then return nil, "Missing LibSerialize/LibDeflate." end
@@ -257,6 +326,75 @@ function CCS.ExportProfile(profileName)
     for k in pairs(EXPORT_KEYS) do
         if src[k] ~= nil then payload[k] = src[k] end
     end
+    local serialized = ser:Serialize(payload)
+    local compressed = def:CompressDeflate(serialized, { level = 7 })
+    if not compressed then return nil, "Compression failed." end
+    return EXPORT_PREFIX .. def:EncodeForPrint(compressed)
+end
+
+-- Ability-keyed export tables (filtered by selective export). `channel` is
+-- global, not per-ability, so it is not included in a selective export.
+local ABILITY_KEYED = {
+    warnEnabled = true, warnOverride = true,
+    countdownEnabled = true, countdownOverride = true,
+    showAllBosses = true, expandedSpells = true, customAuras = true,
+}
+
+-- Export only the ability settings whose keys belong to the selected instances.
+-- selected: a set of instance names { ["Altar of Fangs"]=true, ... }.
+-- customAuras/showAllBosses are keyed by bossKey, not ability key; they are
+-- matched by the same instance map (a bossKey maps through its abilities).
+function CCS.ExportProfileFiltered(profileName, selected)
+    local ser, def = getLibs()
+    if not ser or not def then return nil, "Missing LibSerialize/LibDeflate." end
+    if not db then return nil, "No database." end
+
+    profileName = profileName or CCS.GetProfileName()
+    local src = (profileName == CCS.GetProfileName()) and db.profile or (db.sv.profiles and db.sv.profiles[profileName])
+    if not src then return nil, "Profile not found." end
+
+    local map = CCS.BuildKeyInstanceMap()
+    -- bossKey -> instance, so showAllBosses/customAuras (keyed by bossKey) filter too.
+    local bossInstance = {}
+    for _, season in ipairs(CCS.SEASON_ORDER) do
+        for _, entry in ipairs(CCS.SeasonRaids[season] or {}) do
+            if entry.bossKey and entry.raid then bossInstance[entry.bossKey] = entry.raid end
+        end
+        for _, dungeon in ipairs(CCS.SeasonDungeons[season] or {}) do
+            local data = dungeon.data()
+            if data then
+                for _, entry in ipairs(data) do
+                    if entry.bossKey then bossInstance[entry.bossKey] = dungeon.label end
+                end
+            end
+        end
+    end
+
+    local function keyIncluded(k)
+        local info = map[k]
+        if info then return selected[info.instance] end
+        -- Not an ability key; maybe a bossKey (showAllBosses/customAuras) or a
+        -- custom aura key (ccs::user::<bossKey>::id).
+        if bossInstance[k] then return selected[bossInstance[k]] end
+        local ck = CCS.BaseKey and CCS.BaseKey(k)
+        if ck and bossInstance[ck] then return selected[bossInstance[ck]] end
+        return false
+    end
+
+    local payload = { name = profileName }
+    local any = false
+    for tbl in pairs(ABILITY_KEYED) do
+        local srcTbl = src[tbl]
+        if type(srcTbl) == "table" then
+            local out = {}
+            for k, v in pairs(srcTbl) do
+                if keyIncluded(k) then out[k] = v; any = true end
+            end
+            if next(out) then payload[tbl] = out end
+        end
+    end
+    if not any then return nil, "Nothing selected (or no settings on those instances)." end
+
     local serialized = ser:Serialize(payload)
     local compressed = def:CompressDeflate(serialized, { level = 7 })
     if not compressed then return nil, "Compression failed." end

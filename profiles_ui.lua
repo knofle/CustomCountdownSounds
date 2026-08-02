@@ -158,12 +158,114 @@ StaticPopupDialogs["CCS_IMPORT_TARGET"] = {
     timeout = 0, whileDead = true, hideOnEscape = true, exclusive = true,
 }
 
+-- A compact scrollable checkbox list with an "All" toggle at the top. Ticking
+-- All ticks every row; unticking any row unticks All. Returns a frame with
+-- :SetItems(names), :GetChecked() -> set of ticked names, and :SetOnChange(fn).
+local function makeCheckList(parent, w, h, title)
+    local ROW_H = 16
+    local box = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    box:SetSize(w, h)
+    box:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+    box:SetBackdropColor(0.05, 0.05, 0.05, 1)
+    box:SetBackdropBorderColor(unpack(COL_BORDER))
+
+    local lbl = fstring(box, "ARTWORK", "GameFontNormalSmall")
+    lbl:SetPoint("BOTTOMLEFT", box, "TOPLEFT", 0, 3)
+    lbl:SetText("|cffcccccc" .. title .. "|r")
+
+    local scroll = CreateFrame("ScrollFrame", nil, box, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 4, -4)
+    scroll:SetPoint("BOTTOMRIGHT", -22, 4)
+    local content = CreateFrame("Frame", nil, scroll)
+    content:SetSize(w - 26, h)
+    scroll:SetScrollChild(content)
+
+    box._rows = {}
+    box._checked = {}
+    box._onChange = nil
+
+    local function fireChange() if box._onChange then box._onChange() end end
+
+    -- reused row pool
+    local function acquireRow(i)
+        local row = box._rows[i]
+        if not row then
+            row = CreateFrame("CheckButton", nil, content, "UICheckButtonTemplate")
+            row:SetSize(ROW_H, ROW_H)
+            if CCS._stripCheckBorder then CCS._stripCheckBorder(row) end
+            row._fs = fstring(row, "ARTWORK", "GameFontNormalSmall")
+            row._fs:SetPoint("LEFT", row, "RIGHT", 2, 0)
+            box._rows[i] = row
+        end
+        return row
+    end
+
+    -- item 1 is always "All"; items 2..n are the instances.
+    function box:SetItems(names)
+        box._names = names
+        local total = #names + 1
+        for i = 1, total do
+            local row = acquireRow(i)
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", content, "TOPLEFT", 2, -(i-1)*ROW_H)
+            local isAll = (i == 1)
+            local name = isAll and "All" or names[i-1]
+            row._name = name
+            row._isAll = isAll
+            row._fs:SetText(isAll and "|cffffffffAll|r" or name)
+            row:SetChecked(box._checked[name] and true or false)
+            row:SetScript("OnClick", function(self)
+                local on = self:GetChecked() and true or false
+                if isAll then
+                    for _, n in ipairs(names) do box._checked[n] = on end
+                    box._checked["All"] = on
+                    for j = 2, total do box._rows[j]:SetChecked(on) end
+                else
+                    box._checked[name] = on
+                    if not on then
+                        box._checked["All"] = false
+                        box._rows[1]:SetChecked(false)
+                    else
+                        -- if every instance is now ticked, tick All too
+                        local allOn = true
+                        for _, n in ipairs(names) do if not box._checked[n] then allOn = false break end end
+                        box._checked["All"] = allOn
+                        box._rows[1]:SetChecked(allOn)
+                    end
+                end
+                fireChange()
+            end)
+            row:Show()
+        end
+        for i = total + 1, #box._rows do box._rows[i]:Hide() end
+        content:SetHeight(math.max(h, total * ROW_H))
+    end
+
+    -- set of ticked instance names (excludes the "All" pseudo-entry)
+    function box:GetChecked()
+        local out = {}
+        for _, n in ipairs(box._names or {}) do
+            if box._checked[n] then out[n] = true end
+        end
+        return out
+    end
+
+    function box:ClearChecked()
+        box._checked = {}
+        for _, row in ipairs(box._rows) do row:SetChecked(false) end
+    end
+
+    function box:SetOnChange(fn) box._onChange = fn end
+    return box
+end
+
 -- Build the window -----------------------------------------------------------
 
 local function build()
     panel = CreateFrame("Frame", "CCSProfilesWindow", UIParent, "BackdropTemplate")
     tinsert(UISpecialFrames, "CCSProfilesWindow")  -- close on Esc
-    panel:SetSize(546, 440)
+    panel:SetSize(546, 600)
     panel:SetPoint("TOPLEFT", UIParent, "CENTER", -273, 220)
     panel:SetFrameStrata("HIGH")
     panel:SetFrameLevel(50)
@@ -180,6 +282,11 @@ local function build()
     panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
     if CCS.AddShadow then CCS.AddShadow(panel) end
     panel:Hide()
+
+    -- Darker band behind the profile selector at the top, separating it from the
+    -- export/import section below. Bottom edge is set once expHeading exists.
+    local topBand = panel:CreateTexture(nil, "BACKGROUND", nil, 1)
+    topBand:SetColorTexture(0, 0, 0, 0.28)
 
     local title = fstring(panel, "ARTWORK", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 16, -14)
@@ -246,12 +353,30 @@ local function build()
     end)
 
     -- export box
+    -- "Export" heading at the top of the section.
+    local expHeading = fstring(panel, "ARTWORK", "GameFontNormalSmall")
+    expHeading:SetPoint("TOPLEFT", newBtn, "BOTTOMLEFT", 0, -14)
+    expHeading:SetText("")   -- spacer: keeps the padding, no visible heading
+    -- Close the top band just above the season dropdown / export section.
+    -- Full-width band: top + sides pinned to the panel, bottom just under the
+    -- expHeading spacer (i.e. just above the season dropdown).
+    topBand:SetPoint("TOPLEFT",  panel, "TOPLEFT",   2, -2)
+    topBand:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -2, -2)
+    topBand:SetPoint("BOTTOM",   expHeading, "BOTTOM", 0, -4)
+
+    -- Thin light line along the band's bottom edge to reinforce the split.
+    local topBandLine = panel:CreateTexture(nil, "BACKGROUND", nil, 2)
+    topBandLine:SetColorTexture(1, 1, 1, 0.12)
+    topBandLine:SetHeight(1)
+    topBandLine:SetPoint("LEFT",  topBand, "BOTTOMLEFT",  0, 0)
+    topBandLine:SetPoint("RIGHT", topBand, "BOTTOMRIGHT", 0, 0)
+
+    -- The paste box + its label are created here but anchored later (below the
+    -- checklists and Generate), so declare the frame now and place it after.
     local expLbl = fstring(panel, "ARTWORK", "GameFontNormalSmall")
-    expLbl:SetPoint("TOPLEFT", newBtn, "BOTTOMLEFT", 0, -14)
     expLbl:SetText("|cffccccccExport (copy this and share it)|r")
 
     local expFrame = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-    expFrame:SetPoint("TOPLEFT", expLbl, "BOTTOMLEFT", 0, -4)
     expFrame:SetSize(BOX_W, BOX_H)
     expFrame:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8",
         edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
@@ -278,9 +403,45 @@ local function build()
     panel.expBox = expBox
 
     local expBtn = makeFlatButton(panel, 90, 22, "Generate")
-    expBtn:SetPoint("TOPLEFT", expFrame, "BOTTOMLEFT", 0, -6)
+    -- anchored below the checklists (set after they exist)
+
+    -- Selective export: a season dropdown swaps which instances the two check
+    -- lists show; only the ticked raids/dungeons get exported.
+    local selSeason = CCS.GetSeason and CCS.GetSeason() or "S2"
+
+    local seasonDD = CCS_CreateDropdown(panel, 90, 20, 11)
+    seasonDD._noGreen = true; seasonDD._noScroll = true
+    seasonDD:SetPoint("TOPLEFT", expHeading, "BOTTOMLEFT", 0, -8)
+    seasonDD:SetItems({ { label = "Season 1", value = "S1" }, { label = "Season 2", value = "S2" } })
+
+    local raidList = makeCheckList(panel, 190, 96, "Raids")
+    raidList:SetPoint("TOPLEFT", seasonDD, "BOTTOMLEFT", 0, -22)
+    local dungeonList = makeCheckList(panel, 190, 96, "Dungeons")
+    dungeonList:SetPoint("LEFT", raidList, "RIGHT", 24, 0)
+
+    -- Generate sits below the checklists; the paste box + label below Generate.
+    expBtn:SetPoint("TOPLEFT", raidList, "BOTTOMLEFT", 0, -10)
+    expLbl:SetPoint("TOPLEFT", expBtn, "BOTTOMLEFT", 0, -12)
+    expFrame:SetPoint("TOPLEFT", expLbl, "BOTTOMLEFT", 0, -4)
+
+    local function loadSeasonLists(season)
+        local raids, dungeons = CCS.GetSeasonInstances(season)
+        raidList:ClearChecked();    raidList:SetItems(raids)
+        dungeonList:ClearChecked(); dungeonList:SetItems(dungeons)
+    end
+    seasonDD:SetOnSelect(function(v) selSeason = v; loadSeasonLists(v) end)
+    seasonDD:SetValue(selSeason)
+    loadSeasonLists(selSeason)
+
     expBtn:SetScript("OnClick", function()
-        local s, err = CCS.ExportProfile()
+        local selected = {}
+        for name in pairs(raidList:GetChecked())    do selected[name] = true end
+        for name in pairs(dungeonList:GetChecked()) do selected[name] = true end
+        if not next(selected) then
+            print("|cffffff00CCS:|r Pick at least one raid or dungeon to export.")
+            return
+        end
+        local s, err = CCS.ExportProfileFiltered(nil, selected)
         if s then
             expBox:SetText(s)
             expBox:SetFocus(); expBox:HighlightText()
@@ -291,7 +452,7 @@ local function build()
 
     -- import box
     local impLbl = fstring(panel, "ARTWORK", "GameFontNormalSmall")
-    impLbl:SetPoint("TOPLEFT", expBtn, "BOTTOMLEFT", 0, -14)
+    impLbl:SetPoint("TOPLEFT", expFrame, "BOTTOMLEFT", 0, -14)
     impLbl:SetText("|cffccccccImport (paste a string, then Import)|r")
 
     local impFrame = CreateFrame("Frame", nil, panel, "BackdropTemplate")
@@ -319,8 +480,39 @@ local function build()
     impFrame:SetScript("OnMouseDown", function() impBox:SetFocus() end)
     panel.impBox = impBox
 
+    -- Green preview: which instances the pasted string will bring in.
+    local impPreview = fstring(panel, "ARTWORK", "GameFontNormalSmall")
+    impPreview:SetPoint("TOPLEFT", impFrame, "BOTTOMLEFT", 0, -6)
+    impPreview:SetWidth(BOX_W)
+    impPreview:SetJustifyH("LEFT")
+    impPreview:SetText("")
+
+    -- Instances a decoded payload touches, from all its ability-keyed tables.
+    local function payloadInstances(payload)
+        local keys = {}
+        for _, tbl in ipairs({ "warnEnabled", "warnOverride", "countdownEnabled",
+                               "countdownOverride", "showAllBosses", "customAuras" }) do
+            if type(payload[tbl]) == "table" then
+                for k in pairs(payload[tbl]) do keys[k] = true end
+            end
+        end
+        return CCS.InstancesForKeys and CCS.InstancesForKeys(keys) or {}
+    end
+
+    local function updatePreview()
+        local payload = CCS.DecodeProfile(impBox:GetText())
+        if not payload then impPreview:SetText(""); return end
+        local names = payloadInstances(payload)
+        if #names == 0 then
+            impPreview:SetText("|cff88cc88Ready to import (no instance-specific settings).|r")
+        else
+            impPreview:SetText("|cff66cc66Importing: " .. table.concat(names, ", ") .. "|r")
+        end
+    end
+    impBox:SetScript("OnTextChanged", updatePreview)
+
     local impBtn = makeFlatButton(panel, 90, 22, "Import")
-    impBtn:SetPoint("TOPLEFT", impFrame, "BOTTOMLEFT", 0, -6)
+    impBtn:SetPoint("TOPLEFT", impPreview, "BOTTOMLEFT", 0, -6)
     impBtn:SetScript("OnClick", function()
         local payload, err = CCS.DecodeProfile(impBox:GetText())
         if not payload then
@@ -328,6 +520,7 @@ local function build()
             return
         end
         impBox:SetText("")
+        impPreview:SetText("")
         local dlg = StaticPopup_Show("CCS_IMPORT_TARGET", payload.name or "Imported")
         if dlg then dlg.data = payload end
     end)
