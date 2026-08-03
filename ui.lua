@@ -8,37 +8,27 @@ local searchQuery = ""
 -- Tiny utilities
 ------------------------------------------------------------
 
--- Font registry. Every label the addon creates goes through makeFontString,
--- which remembers it and its default font object. When the user picks a font,
--- applyFont() re-fonts them all in one pass, keeping each one's own size.
+-- Font registry: makeFontString remembers each label so applyFont() re-fonts all.
 local _fontStrings = {}   -- { fs = <fontstring>, bold = <bool>, size = <n> }
 
--- The addon ships its own font, so there is nothing to resolve or wait for.
--- Bold is used for the large headings (raid names, boss names, window titles);
--- everything else uses the regular weight.
+-- Bundled fonts: bold for large headings, regular elsewhere.
 local FONT_REGULAR = CCS.FONT_REGULAR
 local FONT_BOLD    = CCS.FONT_BOLD
 
--- Every heading in the UI is created from a *Large font object, so the object
--- name is enough to pick the weight without touching each call site.
+-- Headings use a *Large font object; the name picks the weight.
 local function wantsBold(fontObject)
     return type(fontObject) == "string" and fontObject:find("Large") ~= nil
 end
 
--- Guard against a nil face or a size of 0 coming back from GetFont. Note that
--- "size or 12" does NOT catch 0, since 0 is truthy in Lua, and a zero size
--- renders nothing.
+-- GetFont can return size 0 (truthy in Lua, renders nothing); guard it.
 local DEFAULT_FACE = "Fonts\\FRIZQT__.TTF"
 local function okSize(n)
     if type(n) == "number" and n > 0 then return n end
     return 12
 end
 
--- A custom font can be registered (so metrics and GetStringWidth are correct)
--- while its glyphs aren't loaded yet. The string then measures fine and draws
--- nothing, which looks exactly like missing text. Re-issuing SetText forces a
--- redraw once the glyphs are available; clearing first guarantees it isn't
--- optimised away as a no-op.
+-- Re-issue SetText to force a redraw once font glyphs load (clear first so it's
+-- not optimised away).
 local function refreshText(fs)
     local t = fs:GetText()
     if t and t ~= "" then
@@ -106,9 +96,7 @@ end
 CCS._applyFont = applyFont
 CCS._makeFontString = makeFontString
 
--- A font file's glyphs can still be loading on the first frames after login,
--- which draws the text blank even though the font applied cleanly. Re-apply a
--- few times early on; each pass just re-issues SetFont and SetText.
+-- Glyphs may load a few frames after login; re-apply the font a few times early.
 local _reapplyScheduled = false
 local function scheduleFontReapply()
     if _reapplyScheduled then return end
@@ -137,9 +125,7 @@ local function withCombatGuard(fn)
     fn()
 end
 
--- A sub-row's sound is registered as part of its parent ability's pass, so
--- always refresh the parent. Refreshing the variant alone would register its
--- sound against the apply trigger.
+-- Sub-row sounds register via the parent's pass; always refresh the parent.
 local function refreshOwningAbility(a)
     if not a then return end
     local target = (a._event and a._parent) or a
@@ -164,9 +150,7 @@ local function stripButtonBorder(btn)
     registerButtonFont(btn)
 end
 
--- brighten a widget's border on hover.
--- reads the resting colour instead of hardcoding it, or hovering an
--- advanced (green) checkbox would wipe the green on leave.
+-- Brighten a border on hover (reads the resting colour so green survives).
 local function addBorderHighlight(widget, border, r, g, b)
     if not widget or not border then return end
     r, g, b = r or 0.8, g or 0.8, b or 0.8
@@ -232,11 +216,7 @@ local function setAdvancedCbBorder(cb, isAdvanced)
     end
 end
 
--- tooltip on a frame.
--- some widgets set their own OnEnter first (dropdown border highlight), so
--- chain those instead of replacing them.
--- don't switch to HookScript: rebindAll re-tooltips pooled headers every
--- rebuild, so the handlers would stack.
+-- Tooltip on a frame. Chains existing OnEnter (not HookScript: rebindAll would stack).
 local function addTooltip(frame, title, body, anchorLeft)
     frame:EnableMouse(true)
 
@@ -310,7 +290,7 @@ local COUNTDOWN_LABELS = {
     ["file:11s"]="11.0 Seconds", ["file:11,5s"]="11.5 Seconds",
     ["file:12s"]="12.0 Seconds", ["file:12,5s"]="12.5 Seconds",
     ["file:13s"]="13.0 Seconds",
-    ["file:3sfull"]="3.0 Seconds",
+    ["file:3sfull"]="3.0 Seconds", ["file:3,5sfull"]="3.5 Seconds",
 }
 
 local function prettifyKey(key)
@@ -347,8 +327,7 @@ end
 local function hasHeroic(ability) return ability.soundH ~= nil or CCS.GetCountdownOverride(ability.key, "H") ~= nil end
 local function hasMythic(ability)  return ability.soundM ~= nil or CCS.GetCountdownOverride(ability.key, "M") ~= nil end
 
--- CCS-registered LSM sounds get prettified labels.
--- Raid markers also get the target icon and an "RM" tag.
+-- Prettify CCS sound labels; raid markers get the target icon + "RM" tag.
 local RAID_ICON_TEX = " |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_%d:0|t"
 local RM_ICON_INDEX = {
     star = 1, circle = 2, diamond = 3, triangle = 4,
@@ -488,15 +467,12 @@ local SECTION_HEADER_H   = 24
 local HEADER_BAR_H = 62  -- height of the column header bar (Warning Sound / Countdown Timer)
 local BULK_BOX_H   = 38  -- height of the All Warnings / All Countdowns boxes
 local TOP_BLOCK_H  = 66  -- top black block: addon name, output row, volume row, buttons
--- Arrows live in their own gutter on the left; INDENT is where content
--- (spell icons, boss names) starts, leaving a clear gap after the arrow.
+-- INDENT: where content starts, after the arrow gutter.
 local ARROW_X    = 14   -- centre of the arrow column, from the row's left edge
 local INDENT     = 28
--- Ability rows sit a step further in than their boss header, so the arrow and
--- icon columns both shift by this much.
+-- Ability rows indent this much past their boss header.
 local ROW_INDENT = 10
--- The clickable area starts left of the arrow so the arrow itself can be
--- clicked and is covered by the hover highlight.
+-- Clickable area starts left of the arrow so it's clickable + highlighted.
 local HDR_LEFT     = ARROW_X - 8                    -- boss header frame edge
 local ROW_LBL_LEFT = ARROW_X + ROW_INDENT - 8       -- ability lblFrame edge
 local CHECKBOX_SIZE    = 18
@@ -507,11 +483,8 @@ local ARROW_PATH = CCS.MEDIA_DIR
 --------------------------------------------------
 -- Drop shadow
 --------------------------------------------------
--- A soft border texture drawn behind a frame in black reads as a shadow. Two
--- details make it sit correctly: the backdrop is pushed outward by edgeSize/2
--- so the falloff starts at the frame edge rather than overlapping the border,
--- and it sits one frame level below its parent so it can never cover content.
--- Needs media\shadow.tga, which must be a border (edgeFile) texture.
+-- Black border texture behind a frame = shadow. Pushed out by edgeSize/2, one
+-- frame level below. Needs media\shadow.tga (an edgeFile texture).
 local SHADOW_TEXTURE = ARROW_PATH .. "shadow"
 local SHADOW_SIZE    = 15    -- edgeSize; larger = wider, softer falloff
 local SHADOW_ALPHA   = 0.20  -- lower = subtler
@@ -1331,14 +1304,10 @@ local function acquireSep(scrollChild, idx)
     return _pool.seps[idx]
 end
 
--- A soft downward shadow beneath a separator line: a short vertical gradient,
--- slightly darker at the top and fading to transparent so it blends into
--- whatever background sits below. No texture file; pooled per sep index.
+-- Downward shadow under a separator: vertical gradient, no texture. Pooled per index.
 local SEP_SHADOW_H     = 20     -- how far the fade reaches down
 local SEP_SHADOW_ALPHA = 0.08   -- darkness at the top of the fade
--- Apply the vertical fade in the requested direction. Set every call, not just
--- on creation, because a pooled strip can switch direction between rebuilds as
--- indices shift.
+-- Set the gradient every call: a pooled strip can switch direction on rebuild.
 local function setSepGradient(sh, dir)
     local clear = CreateColor(0, 0, 0, 0)
     local dark  = CreateColor(0, 0, 0, SEP_SHADOW_ALPHA)
@@ -1407,9 +1376,7 @@ end
 -- Deferred pool pre-warm
 ------------------------------------------------------------
 
--- rebindAll builds rows on demand, so we don't need the whole pool up front.
--- building all ~225 rows at once was the first-open hitch (only ~66 show by
--- default). instead fill the rest in the background once the window is up.
+-- Fill the row pool in the background so first open doesn't build all ~225 at once.
 
 local PREWARM_PER_TICK = 5   -- rows per frame, small enough to not hitch
 local _prewarmTicker
@@ -1736,12 +1703,8 @@ end
 -- Options Panel
 ------------------------------------------------------------
 
--- A compact horizontal slider matching the scale slider's look. Reusable so the
--- volume control doesn't duplicate it. opts:
---   width, min, max, step, thumbW
---   get()          -> current value (called on refresh/sync)
---   onChange(v, done)  live drag sends done=false; release sends done=true
---   format(v)      -> thumb text
+-- Reusable mini slider. opts: width,min,max,step,thumbW, get(), format(v),
+-- onChange(v, done) -- done=false during drag, true on release.
 local function makeMiniSlider(parent, opts)
     local INSET  = 2
     local TW     = opts.thumbW or 40
@@ -3041,8 +3004,7 @@ end
 
 local standaloneWindow
 
--- built at PLAYER_LOGIN to keep it off the loading screen.
--- fallback build here in case /ccs somehow fires first.
+-- Built at PLAYER_LOGIN (off the loading screen); fallback here if /ccs fires first.
 local function ensureStandaloneWindow()
     if not standaloneWindow then
         standaloneWindow = CreateStandaloneWindow()

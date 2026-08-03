@@ -7,7 +7,7 @@ CCS = CCS or {}
 -- Set true to enable the Mythic+ module
 CCS.MPLUS_ENABLED = true
 
--- OnReady: queued init callbacks fired after AceDB is up.
+-- OnReady: init callbacks fired after AceDB is up.
 CCS._onReadyQueue = CCS._onReadyQueue or {}
 CCS._ready = false
 function CCS.OnReady(fn)
@@ -30,16 +30,14 @@ local function getCurrentDifficulty()
         if difficultyID == 16 or difficultyID == 233 then return "M"
         elseif difficultyID == 15 then return "H"
         end
-        -- /ccs test: also load in Normal (and any other) raid difficulty,
-        -- using the Heroic sound set. Session-only, resets every reload.
+        -- /ccs test: any raid difficulty loads as Heroic. Session-only.
         if CCS._testMode then return "H" end
     elseif instanceType == "party" then
         -- 8 = Mythic Keystone, 23 = Mythic dungeon / M0
         if difficultyID == 8 or difficultyID == 9 or difficultyID == 23 then
             return "M"
         end
-        -- /ccs test: load in any party instance (normal, heroic, follower)
-        -- as Mythic, so all dungeon content works for PTR testing.
+        -- /ccs test: any party instance loads as Mythic.
         if CCS._testMode then return "M" end
     end
     return nil
@@ -50,19 +48,14 @@ local function getInstanceType()
     return instanceType  -- "raid", "party", "none", etc.
 end
 
--- The physical instance ID (8th return of GetInstanceInfo), used to register
--- only the current zone's sounds. This is the instanceID, NOT a UiMapID: it's
--- stable per instance regardless of floor. Data files put the matching number
--- in each raid/dungeon's `zoneID`.
+-- instanceID (8th return of GetInstanceInfo; NOT UiMapID). Matches data zoneID.
 local function getInstanceZone()
     local instanceID = select(8, GetInstanceInfo())
     return instanceID
 end
 CCS.GetInstanceZone = getInstanceZone
 
--- An entry belongs to the current zone if its zoneID matches. Entries without a
--- zoneID are treated as "always" (so nothing stops registering while zone IDs
--- are still being filled in).
+-- No valid zoneID = always load.
 local function entryInZone(entry, zone)
     if entry.zoneID == nil then return true end
     return entry.zoneID == zone
@@ -91,15 +84,11 @@ local dbDefaults = {
     },
 }
 
--- Initialise the shared raid table; data files append to it.
--- Raid data by season. Data files append into the season list they belong to,
--- instead of self-gating by patch, so every season stays loaded and registerable
--- even on a client whose auras won't actually fire for it (future raid-ID based
--- loading relies on this). CCS_Spells_Raid is a *view* onto the selected season,
--- swapped by SetSeason below; most display code reads it unchanged.
+-- Raid data loads by season into CCS_Spells_Raid_S1/S2. CCS_Spells_Raid is a
+-- view onto the current season, swapped by SetSeason.
 CCS_Spells_Raid_S1 = CCS_Spells_Raid_S1 or {}
 CCS_Spells_Raid_S2 = CCS_Spells_Raid_S2 or {}
-CCS_Spells_Raid    = CCS_Spells_Raid_S1   -- reassigned once the season is resolved
+CCS_Spells_Raid    = CCS_Spells_Raid_S1
 
 local _, _, _, tocVersion = GetBuildInfo()
 
@@ -125,20 +114,17 @@ local mplusDungeons_121 = {
     { key = "kings_rest",              label = "Kings' Rest",             color = "|cffd4af37", icon = 2011123, data = function() return CCS_Spells_Mplus_KingsRest             end },
 }
 
--- Both seasons' data, always present. The dropdown selects which one the UI
--- shows; registration walks all of them.
+-- All seasons stay loaded; dropdown only picks which the UI shows.
 CCS.SeasonRaids    = { S1 = CCS_Spells_Raid_S1, S2 = CCS_Spells_Raid_S2 }
 CCS.SeasonDungeons = { S1 = mplusDungeons_120,  S2 = mplusDungeons_121 }
 CCS.SEASON_ORDER   = { "S1", "S2" }
 
--- Season defaults to the current patch's season, session-only (no saved var):
--- S2 on 12.1+, S1 before. Overridable at runtime via the dropdown.
+-- Season defaults by patch (S2 on 12.1+, else S1), session-only.
 local _season = (tocVersion >= 120100) and "S2" or "S1"
 
 function CCS.GetSeason() return _season end
 
--- Point the display views at the selected season. Registration ignores these
--- and iterates every season, so unseen seasons still play.
+-- Point display views at the selected season (registration ignores this).
 local function applySeasonViews()
     CCS_Spells_Raid   = CCS.SeasonRaids[_season]    or CCS_Spells_Raid_S1
     CCS.MplusDungeons = CCS.SeasonDungeons[_season] or mplusDungeons_121
@@ -221,10 +207,8 @@ end
 --------------------------------------------------
 -- Profile export / import
 --------------------------------------------------
--- A profile is shared as a printable string. We serialize only the settings
--- that describe "how this profile sounds" (the four delta tables + channel),
--- keyed by ability key so the string survives spell-ID changes. Personal
--- display prefs (scale, module) live in char and are never exported.
+-- Profile exports as a printable string: the settings tables keyed by ability
+-- key (survives spell-ID changes). Display prefs (scale, module) not exported.
 
 local EXPORT_PREFIX = "CCS1"  -- magic marker + format version
 
@@ -242,13 +226,10 @@ local function getLibs()
     return ser, def
 end
 
--- Serialize the named profile (or current) into a printable string.
--- Returns string, or nil + error message.
+-- Serialize a profile to a string. Returns string, or nil + error.
 -- Selective export support
 --------------------------------------------------
--- Map every ability key to the instance (raid or dungeon) it belongs to, per
--- season, built straight from the data so it works regardless of key naming.
--- Shape: map[key] = { season=, kind="raid"|"dungeon", instance=<name> }
+-- map[key] = { season, kind="raid"|"dungeon", instance }
 function CCS.BuildKeyInstanceMap()
     local map = {}
     for _, season in ipairs(CCS.SEASON_ORDER) do
@@ -297,13 +278,17 @@ function CCS.GetSeasonInstances(season)
     return raids, dungeons
 end
 
--- Which instances a set of ability keys touches (for the import preview).
--- Returns a sorted list of instance names.
+-- Instances a set of keys touches (import preview). Sorted names.
 function CCS.InstancesForKeys(keys)
     local map = CCS.BuildKeyInstanceMap()
     local hit, list = {}, {}
     for k in pairs(keys) do
         local info = map[k]
+        if not info then
+            -- Trigger keys (@stack/@remove) map through their base ability key.
+            local ck = CCS.BaseKey(k)
+            if ck ~= k then info = map[ck] end
+        end
         if info and not hit[info.instance] then
             hit[info.instance] = true
             list[#list + 1] = info.instance
@@ -332,18 +317,14 @@ function CCS.ExportProfile(profileName)
     return EXPORT_PREFIX .. def:EncodeForPrint(compressed)
 end
 
--- Ability-keyed export tables (filtered by selective export). `channel` is
--- global, not per-ability, so it is not included in a selective export.
+-- Per-ability tables filtered on selective export (channel is global, dropped).
 local ABILITY_KEYED = {
     warnEnabled = true, warnOverride = true,
     countdownEnabled = true, countdownOverride = true,
     showAllBosses = true, expandedSpells = true, customAuras = true,
 }
 
--- Export only the ability settings whose keys belong to the selected instances.
--- selected: a set of instance names { ["Altar of Fangs"]=true, ... }.
--- customAuras/showAllBosses are keyed by bossKey, not ability key; they are
--- matched by the same instance map (a bossKey maps through its abilities).
+-- Export only selected instances. selected = { [instanceName]=true }.
 function CCS.ExportProfileFiltered(profileName, selected)
     local ser, def = getLibs()
     if not ser or not def then return nil, "Missing LibSerialize/LibDeflate." end
@@ -354,7 +335,7 @@ function CCS.ExportProfileFiltered(profileName, selected)
     if not src then return nil, "Profile not found." end
 
     local map = CCS.BuildKeyInstanceMap()
-    -- bossKey -> instance, so showAllBosses/customAuras (keyed by bossKey) filter too.
+    -- bossKey -> instance, so bossKey-keyed tables filter too.
     local bossInstance = {}
     for _, season in ipairs(CCS.SEASON_ORDER) do
         for _, entry in ipairs(CCS.SeasonRaids[season] or {}) do
@@ -373,10 +354,11 @@ function CCS.ExportProfileFiltered(profileName, selected)
     local function keyIncluded(k)
         local info = map[k]
         if info then return selected[info.instance] end
-        -- Not an ability key; maybe a bossKey (showAllBosses/customAuras) or a
-        -- custom aura key (ccs::user::<bossKey>::id).
-        if bossInstance[k] then return selected[bossInstance[k]] end
+        -- Strip a trigger suffix (@stack/@remove) and retry against the ability map.
         local ck = CCS.BaseKey and CCS.BaseKey(k)
+        if ck and ck ~= k and map[ck] then return selected[map[ck].instance] end
+        -- Maybe a bossKey or custom-aura key (ccs::user::<bossKey>::id).
+        if bossInstance[k] then return selected[bossInstance[k]] end
         if ck and bossInstance[ck] then return selected[bossInstance[ck]] end
         return false
     end
@@ -401,8 +383,7 @@ function CCS.ExportProfileFiltered(profileName, selected)
     return EXPORT_PREFIX .. def:EncodeForPrint(compressed)
 end
 
--- Decode + validate an import string WITHOUT writing anything.
--- Returns a clean payload table (with .name), or nil + error message.
+-- Decode + validate an import string (no writes). Returns payload or nil+error.
 function CCS.DecodeProfile(str)
     local ser, def = getLibs()
     if not ser or not def then return nil, "Missing LibSerialize/LibDeflate." end
@@ -423,8 +404,7 @@ function CCS.DecodeProfile(str)
     local ok, payload = ser:Deserialize(decompressed)
     if not ok or type(payload) ~= "table" then return nil, "String is corrupt (bad data)." end
 
-    -- Validate: every exported field must be a table (or the channel string),
-    -- and nothing unexpected gets through.
+    -- Every field must be a table (or channel string); reject anything else.
     local clean = { name = type(payload.name) == "string" and payload.name or "Imported" }
     for k in pairs(EXPORT_KEYS) do
         local v = payload[k]
@@ -437,8 +417,7 @@ function CCS.DecodeProfile(str)
     return clean
 end
 
--- Commit a decoded payload into a target profile, replacing its contents.
--- targetName is created if it does not exist. Switches to it.
+-- Write a payload into a profile (created if new), then switch to it.
 function CCS.ImportProfile(payload, targetName)
     if not db then return false, "No database." end
     if type(payload) ~= "table" then return false, "Nothing to import." end
@@ -458,12 +437,11 @@ function CCS.ImportProfile(payload, targetName)
     if CCS.SyncCustomAuras then CCS.SyncCustomAuras() end
     if CCS.MigrateSoundNames then CCS.MigrateSoundNames() end
     if CCS._onProfileChange then CCS._onProfileChange() end
-    -- Older strings may carry a font field; the addon ships its own font now,
-    -- so it is ignored rather than treated as an error.
+    -- Old strings may carry a font field; ignored (addon ships its own).
     return true
 end
 
--- Stamp each entry with its dungeon colour and return a combined list.
+-- Stamp entries with dungeon colour, return combined list.
 local function combineDungeons(onlyKey)
     local out = {}
     for _, dungeon in ipairs(CCS.MplusDungeons) do
@@ -489,13 +467,13 @@ local function applyModule()
     if m == "mplus" and CCS.MPLUS_ENABLED then
         local key = (db and db.char.activeDungeon) or "__all__"
         if key ~= "__all__" then
-            -- Single dungeon; combineDungeons stamps colour and filters.
+
             local single = combineDungeons(key)
             if #single > 0 then
                 CCS_Spells = single
                 return
             end
-            -- Stored dungeon no longer exists; fall through to "all".
+            -- Stored dungeon gone; fall through to all.
             if db then db.char.activeDungeon = "__all__" end
         end
         CCS_Spells = combineDungeons(nil)
@@ -510,7 +488,7 @@ local function applyModule()
                     filtered[#filtered + 1] = entry
                 end
             end
-            -- Stored raid no longer exists (e.g. patch changed); reset.
+            -- Stored raid gone; reset.
             if #filtered == 0 then
                 if db then db.char.activeRaid = "__all__" end
                 CCS_Spells = CCS_Spells_Raid
@@ -612,41 +590,32 @@ end
 --------------------------------------------------
 -- Extra aura triggers
 --------------------------------------------------
--- A spell can play a sound when its aura lands (the ability's own row), gains
--- a stack, or drops off. The extra two are stored under suffixed keys, so the
--- existing per-ability storage, profiles and export all work unchanged.
--- Registration and the data-file defaults live further down, near the aura
--- registration code.
+-- Stack/remove triggers stored under suffixed keys (key@stack, key@remove).
 
--- The triggers that get their own sub-row. "apply" is the base ability, so
--- it is deliberately not in here.
+-- Triggers with a sub-row ("apply" is the base ability, excluded).
 CCS.EXTRA_EVENTS = { "stack", "remove" }
 CCS.EVENT_SUFFIX = { apply = "", stack = "@stack", remove = "@remove" }
 -- Display names for the trigger sub-rows.
 CCS.EVENT_LABEL  = { apply = "Aura Applied", stack = "Stack Gain", remove = "Aura Removed" }
--- Sub-row label tints: both desaturated, remove leaning red, stack leaning blue.
+-- Sub-row tints: stack faint blue, remove faint red.
 CCS.EVENT_COLOR  = { apply = "|cffabb4bc", stack = "|cffa6b7c6", remove = "|cffc6a6a6" }
--- Tickbox tooltip body, so each trigger says what it actually fires on.
+-- Trigger tooltip bodies.
 CCS.EVENT_TIP = {
     apply  = "Play a sound when this ability's aura is applied to you.",
     stack  = "Play a sound when this ability's aura gains a stack on you.",
     remove = "Play a sound when this ability's aura is removed from you.",
 }
 
--- Reveals the per-spell expand chevrons and their apply/stack/remove sub-rows.
--- Visibility only: sounds already set on a trigger keep playing either way,
--- the same way an override applies whether or not Manual Mode is on.
+-- Reveals the expand chevrons + sub-rows (visibility only).
 function CCS.GetExtraAuraTriggers()
-    -- Always on; gated only on the client API supporting stack/removal sounds.
+    -- Always on where the client API supports stack/removal.
     if CCS.SupportsAuraTriggers and not CCS.SupportsAuraTriggers() then
         return false
     end
     return true
 end
 
--- True if this exact trigger key has a sound set on it (ticked or overridden).
--- A configured trigger stays visible even with the toggle off, so an imported
--- profile's settings can't end up active but hidden with no way to clear them.
+-- Trigger key has a sound set (ticked or overridden). Stays visible if so.
 function CCS.HasTriggerConfig(triggerKey)
     if not triggerKey then return false end
     local p = CCS.GetProfile()
@@ -657,9 +626,7 @@ local VALID_CHANNELS = { Master = true, Music = true, SFX = true, Ambience = tru
 --------------------------------------------------
 -- Audio channels
 --------------------------------------------------
--- The sound channels CCS can output on, mapped to their volume and enable
--- CVars. Reading these lets the UI show whether a chosen channel is actually
--- audible and at what volume.
+-- Output channels -> their volume + enable CVars.
 local CHANNEL_CVARS = {
     Master   = { vol = "Sound_MasterVolume",   on = "Sound_EnableAllSound" },
     SFX      = { vol = "Sound_SFXVolume",       on = "Sound_EnableSFX"      },
@@ -836,10 +803,8 @@ function CCS.SetWarnOverride(key, soundKey)
     CCS.GetProfile().warnOverride[key] = soundKey
 end
 
--- Resting sound defaults for an ability, read from its data fields. Centralised
--- so registration, the test button and the row UI all agree on the shape:
---   warn:      soundH or soundM (first element if a {warn, countdown} pair)
---   countdown: the pair's second element, per difficulty (soundM for M, else soundH)
+-- Sound defaults from data fields. warn = soundH/soundM (or [1] of a pair);
+-- countdown = [2] of the pair (soundM for M, else soundH).
 function CCS.WarnDefault(ability)
     local s = ability.soundH or ability.soundM
     if type(s) == "table" then return s[1] end
@@ -874,8 +839,7 @@ function CCS.SetCountdownOverride(key, diff, soundKey)
     p.countdownOverride[key][diff] = soundKey
 end
 
--- Iterate abilities for "raid" or "mplus". Callback receives
--- (ability, isMplus, bossKey).
+-- Iterate abilities for a module. cb(ability, isMplus, bossKey).
 local function iterateModuleSpells(module, fn)
     if module == "raid" then
         for _, entry in ipairs(CCS_Spells_Raid) do
@@ -897,24 +861,20 @@ local function iterateModuleSpells(module, fn)
     end
 end
 
--- Shared helpers for the bulk warn/countdown operations below.
 local function fieldHasWarn(f)
     if f == nil then return false end
     if type(f) == "table" then return f[1] ~= nil end
     return true
 end
 
--- An advanced ability is only bulk-touchable when it's visible: its boss's
--- "Show non-default" is on, or the user has opted it in.
+-- Advanced abilities are only bulk-touchable when visible.
 local function abilityVisibleForBulk(ability, bossKey)
     if not ability.advanced then return true end
     if CCS.GetShowAllBoss(bossKey) then return true end
     return CCS.IsAbilityOptedIn(ability.key)
 end
 
--- Bulk enable/disable warns.
---   - Only touches abilities that are visible right now.
---   - Enable needs a default/override; disable also unticks tick-only.
+-- Bulk warns: only visible abilities. Enable needs a default/override.
 function CCS.SetAllWarn(val, module)
     module = module or CCS.GetModule()
     local p = CCS.GetProfile()
@@ -931,8 +891,7 @@ function CCS.SetAllWarn(val, module)
             p.warnEnabled[ability.key] = false
         end
 
-        -- Extra aura triggers live under their own keys, so they need the same
-        -- treatment or the bulk buttons would skip every sub-row.
+        -- Trigger sub-rows have their own keys; handle them too.
         if CCS.SupportsAuraTriggers() then
             for _, event in ipairs(CCS.EXTRA_EVENTS) do
                 local vKey     = ability.key .. CCS.EVENT_SUFFIX[event]
@@ -984,7 +943,7 @@ function CCS.SetAllCD(val, module)
     end)
 end
 
--- Returns "all_on" / "all_off" / "mixed" for the bulk-toggleable warns.
+-- "all_on" / "all_off" / "mixed" for bulk warns.
 function CCS.GetBulkWarnState(module)
     module = module or CCS.GetModule()
     local p = CCS.GetProfile()
@@ -1003,7 +962,7 @@ function CCS.GetBulkWarnState(module)
     return "mixed"
 end
 
--- Same shape, for countdown flags.
+-- Same, for countdowns.
 function CCS.GetBulkCDState(module)
     module = module or CCS.GetModule()
     local p = CCS.GetProfile()
@@ -1039,7 +998,7 @@ end
 -- Sound resolution
 --------------------------------------------------
 
--- Dedupe resolve-failure warnings so each unique problem only prints once.
+-- Dedupe resolve-failure warnings (print each once).
 local _warnedResolveFailures = {}
 local function warnResolveFailure(kind, soundKey, abilityKey)
     local k = abilityKey .. "|" .. tostring(soundKey) .. "|" .. kind
@@ -1069,8 +1028,7 @@ local function resolveAbilitySounds(ability, diff)
 
     if CCS.IsCDEnabled(ability.key, diff) then
         local defaultCD = CCS.CountdownDefault(ability, diff)
-        -- A user-set override is their choice and plays whether or not manual
-        -- mode is on; manual mode only governs whether they can edit it.
+        -- Overrides play regardless of manual mode (which only gates editing).
         local cdKey = CCS.GetCountdownOverride(ability.key, diff) or defaultCD
         if cdKey then
             local p = CCS.ResolvePath(cdKey)
@@ -1089,24 +1047,17 @@ end
 -- Aura Registration
 --------------------------------------------------
 
--- The private-aura sound API has been renamed twice as it was generalized:
---   AddPrivateAuraAppliedSound  (original, private auras only)
---   AddAuraAppliedSound         (12.1.0, restriction lifted)
---   AddAuraSound                (12.1.0 PTR 6, also supports gain/remove events)
--- Feature-detect newest first so we work across all clients. The add call is
--- routed through callAddAuraSound below, since its signature changed too.
+-- Aura-sound API, feature-detected newest-first (signature varies):
+--   AddAuraSound                (12.1 PTR6; also stack/remove events)
+--   AddAuraAppliedSound         (12.1; private restriction lifted)
+--   AddPrivateAuraAppliedSound  (original; private auras only)
 local removeAuraSound      = C_UnitAuras.RemoveAuraSound
                           or C_UnitAuras.RemoveAuraAppliedSound
                           or C_UnitAuras.RemovePrivateAuraAppliedSound
 local hasGeneralAuraSounds = (C_UnitAuras.AddAuraSound or C_UnitAuras.AddAuraAppliedSound) ~= nil
 
--- 12.1.0 PTR 6: AddAuraSound can fire on apply, on gaining an application
--- (stack) or on removal. A spell's settings are stored under its own key for
--- apply, and under key.."@stack" / key.."@remove" for the other two, so the
--- existing flat storage, profiles and export all work unchanged.
--- The addon ships its own font, so nothing depends on LibSharedMedia or on
--- whatever fonts the user happens to have installed. Bold is for the large
--- headings; regular for everything else.
+-- apply uses the base key; stack/remove use key@stack / key@remove.
+-- Bundled fonts: bold for large headings, regular elsewhere.
 CCS.MEDIA_DIR    = "Interface\\AddOns\\CustomCountdownSounds\\media\\"
 CCS.FONT_DIR     = "Interface\\AddOns\\CustomCountdownSounds\\fonts\\"
 CCS.FONT_REGULAR = CCS.FONT_DIR .. "Expressway.ttf"

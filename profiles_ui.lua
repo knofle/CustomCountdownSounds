@@ -4,8 +4,7 @@
 local addonName = ...
 local CCS_CreateDropdown = CCS.CreateDropdown
 
--- Route labels through the font registry when it's available, so the profile
--- window restyles with the chosen font like the rest of the addon.
+-- Route labels through the font registry so they restyle with the addon.
 local function fstring(parent, layer, obj)
     if CCS._makeFontString then return CCS._makeFontString(parent, layer, obj) end
     return parent:CreateFontString(nil, layer, obj)
@@ -127,7 +126,7 @@ StaticPopupDialogs["CCS_PROFILE_RENAME"] = {
     timeout = 0, whileDead = true, hideOnEscape = true,
 }
 
--- Import target picker (replace current vs save-as-new) -----------------------
+-- Import target picker (replace vs save-as-new) ----
 
 StaticPopupDialogs["CCS_IMPORT_TARGET"] = {
     text = "Import profile \"%s\"?\n\nSave as new keeps your current profiles.\nOverwrite replaces the profile you're on now.",
@@ -158,9 +157,7 @@ StaticPopupDialogs["CCS_IMPORT_TARGET"] = {
     timeout = 0, whileDead = true, hideOnEscape = true, exclusive = true,
 }
 
--- A compact scrollable checkbox list with an "All" toggle at the top. Ticking
--- All ticks every row; unticking any row unticks All. Returns a frame with
--- :SetItems(names), :GetChecked() -> set of ticked names, and :SetOnChange(fn).
+-- Scrollable checkbox list with an "All" toggle. :SetItems, :GetChecked, :SetOnChange.
 local function makeCheckList(parent, w, h, title)
     local ROW_H = 16
     local box = CreateFrame("Frame", nil, parent, "BackdropTemplate")
@@ -201,7 +198,7 @@ local function makeCheckList(parent, w, h, title)
         return row
     end
 
-    -- item 1 is always "All"; items 2..n are the instances.
+    -- item 1 = All; 2..n = instances.
     function box:SetItems(names)
         box._names = names
         local total = #names + 1
@@ -242,7 +239,7 @@ local function makeCheckList(parent, w, h, title)
         content:SetHeight(math.max(h, total * ROW_H))
     end
 
-    -- set of ticked instance names (excludes the "All" pseudo-entry)
+    -- ticked instance names (not "All")
     function box:GetChecked()
         local out = {}
         for _, n in ipairs(box._names or {}) do
@@ -283,8 +280,7 @@ local function build()
     if CCS.AddShadow then CCS.AddShadow(panel) end
     panel:Hide()
 
-    -- Darker band behind the profile selector at the top, separating it from the
-    -- export/import section below. Bottom edge is set once expHeading exists.
+    -- Darker band behind the profile selector (bottom set once expHeading exists).
     local topBand = panel:CreateTexture(nil, "BACKGROUND", nil, 1)
     topBand:SetColorTexture(0, 0, 0, 0.28)
 
@@ -358,8 +354,7 @@ local function build()
     expHeading:SetPoint("TOPLEFT", newBtn, "BOTTOMLEFT", 0, -14)
     expHeading:SetText("")   -- spacer: keeps the padding, no visible heading
     -- Close the top band just above the season dropdown / export section.
-    -- Full-width band: top + sides pinned to the panel, bottom just under the
-    -- expHeading spacer (i.e. just above the season dropdown).
+    -- Band bottom sits just above the season dropdown.
     topBand:SetPoint("TOPLEFT",  panel, "TOPLEFT",   2, -2)
     topBand:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -2, -2)
     topBand:SetPoint("BOTTOM",   expHeading, "BOTTOM", 0, -4)
@@ -371,8 +366,7 @@ local function build()
     topBandLine:SetPoint("LEFT",  topBand, "BOTTOMLEFT",  0, 0)
     topBandLine:SetPoint("RIGHT", topBand, "BOTTOMRIGHT", 0, 0)
 
-    -- The paste box + its label are created here but anchored later (below the
-    -- checklists and Generate), so declare the frame now and place it after.
+    -- Paste box created here, anchored below the checklists/Generate later.
     local expLbl = fstring(panel, "ARTWORK", "GameFontNormalSmall")
     expLbl:SetText("|cffccccccExport (copy this and share it)|r")
 
@@ -405,8 +399,7 @@ local function build()
     local expBtn = makeFlatButton(panel, 90, 22, "Generate")
     -- anchored below the checklists (set after they exist)
 
-    -- Selective export: a season dropdown swaps which instances the two check
-    -- lists show; only the ticked raids/dungeons get exported.
+    -- Season dropdown swaps the check lists; only ticked instances export.
     local selSeason = CCS.GetSeason and CCS.GetSeason() or "S2"
 
     local seasonDD = CCS_CreateDropdown(panel, 90, 20, 11)

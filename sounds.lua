@@ -1,7 +1,6 @@
 -- sounds.lua
--- LibSharedMedia registration and sound path resolution.
--- To add or remove a bundled sound, edit lsmSounds below. Nothing else needs to change.
--- Loaded before core.lua so CCS.ResolvePath exists for everything after it.
+-- LibSharedMedia registration + path resolution. Add/remove sounds via lsmSounds.
+-- Loaded before core.lua so CCS.ResolvePath exists after.
 
 local addonName = ...
 local LSM = LibStub("LibSharedMedia-3.0")
@@ -14,10 +13,8 @@ local lsmSounds = {
     "break","breath","burn","dot","marked","move","soak","spread","targeted","drop","fixate","pull","stack","safe","absorb","debuff","collect","damage","heal","slow","charge","clear","knock","spikes","skull","cross","square","moon","triangle","diamond","star","circle","in","out","right","left","magic","curse","poison","bleed","taunt"
 }
 
--- The colour goes INTO the registered LSM name, because that name is what every
--- picker displays, including other addons' pickers. Only the "CCS:" tag is
--- coloured here; the sound name itself stays plain in the registered string.
--- (The per-group tint is applied on top, display-only, in CCS's own picker.)
+-- Colour is baked into the registered LSM name so "CCS:" shows in other addons'
+-- pickers too. Only the tag is coloured; group tint is display-only.
 CCS.TAG_COLOR = "|cff9fd6f5"   -- light blue
 
 local function registeredName(n)
@@ -43,13 +40,8 @@ end
 --------------------------------------------------
 -- Sound grouping + colour (display only)
 --------------------------------------------------
--- The picker groups our sounds by theme and tints each group very slightly, so
--- similar sounds sit together and read at a glance without being loud. This is
--- display only: the registered/stored name stays "CCS: <name>", so saved picks
--- and profile strings are unaffected. To move a sound to another group, edit
--- the lists below; anything not listed falls into a neutral group at the end.
---
--- Order of the groups here is the order they appear in the picker.
+-- Picker groups + tint (display only; stored name unchanged). List order =
+-- picker order; unlisted sounds fall into a neutral group last.
 CCS.SOUND_GROUPS = {
     { color = "|cffe8b3b3", names = { "absorb", "bleed", "curse", "debuff", "dot", "magic", "poison", "slow" } },       -- slight red
     { color = "|cffb3e0b8", names = { "in", "left", "move", "out", "right" } },                                          -- slight green
@@ -57,8 +49,7 @@ CCS.SOUND_GROUPS = {
     { color = "|cffe8dfa8", names = { "breath", "charge", "damage", "fixate", "knock", "marked", "pull", "safe", "spikes", "targeted" } }, -- slight yellow
 }
 
--- Lookup: bare sound name -> { color, order } for its group. Sounds not in any
--- group get no colour and sort last.
+-- bare name -> { color, order }. Ungrouped = no colour, sorts last.
 CCS.SOUND_GROUP_OF = {}
 for gi, group in ipairs(CCS.SOUND_GROUPS) do
     for ni, name in ipairs(group.names) do
@@ -87,11 +78,8 @@ CCS.ResolvePath = resolvePath
 --------------------------------------------------
 -- Migration
 --------------------------------------------------
--- The registered name is also the value stored in a profile, so changing the
--- colour would orphan existing saved picks. Rewrite any stored value that
--- refers to one of our sounds into the current registeredName(). Matching by
--- bare name makes this idempotent AND auto-recolours everything if TAG_COLOR
--- ever changes. "file:" values and other addons' sounds are left alone.
+-- Rewrite stored picks to the current registeredName(). Idempotent, matches by
+-- bare name (auto-recolours). Leaves file: and other addons' sounds alone.
 local ourNames = {}
 for _, n in ipairs(lsmSounds) do ourNames[n] = true end
 

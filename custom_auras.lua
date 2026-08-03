@@ -1,20 +1,13 @@
 -- custom_auras.lua
--- User-added spell IDs.
---
--- A boss can carry extra spell IDs the user adds themselves. They are stored
--- per profile as a list of IDs per bossKey, then injected into that boss's
--- ability list at runtime, so registration, search, bulk toggles and the test
--- commands treat them as ordinary advanced abilities without needing to know
--- they exist.
---
--- Loads after ui.lua: the button factory below borrows its styling helpers.
+-- User-added spell IDs, stored per profile as IDs per bossKey and injected into
+-- the boss's ability list at runtime (treated as normal advanced abilities).
+-- Loads after ui.lua (borrows its styling helpers).
 
 --------------------------------------------------
 -- Storage
 --------------------------------------------------
 
--- Colons never appear in data-file keys, so a user aura can never collide with
--- a built-in one, and the suffix stripping in CCS.BaseKey leaves it alone.
+-- Colon-prefixed keys never collide with built-in ones.
 local KEY_PREFIX = "ccs::user::"
 
 function CCS.CustomAuraKey(bossKey, spellID)
@@ -54,8 +47,7 @@ local function iterateEntries(fn)
     end
 end
 
--- Rebuild the injected rows from the stored list. Safe to call repeatedly:
--- previously injected rows are stripped first, so nothing accumulates.
+-- Rebuild injected rows from storage. Idempotent (strips old first).
 function CCS.SyncCustomAuras()
     iterateEntries(function(entry)
         if not entry.bossKey then return end
@@ -98,8 +90,7 @@ function CCS.RemoveCustomAura(bossKey, spellID)
     end
     if #list == 0 then p.customAuras[bossKey] = nil end
 
-    -- Drop its settings too, including the extra trigger keys, so removing an
-    -- aura doesn't leave orphaned entries behind in the profile.
+    -- Drop its settings + trigger keys too (no orphans).
     local key = CCS.CustomAuraKey(bossKey, spellID)
     p.warnEnabled[key], p.warnOverride[key] = nil, nil
     p.countdownEnabled[key], p.countdownOverride[key] = nil, nil
@@ -114,10 +105,7 @@ end
 --------------------------------------------------
 -- "Add Aura" row
 --------------------------------------------------
--- Collapsed it is a single "Add Aura" button. Clicking it expands the row into
--- an inline "Spell ID [____] [Add]" entry, so adding a spell never leaves the
--- list. Pooled the same way ui.lua pools its rows, and styled with ui.lua's
--- helpers so it matches the buttons beside it.
+-- "Add Aura" button expands inline to "Spell ID [__] [Add]". Pooled like ui rows.
 
 local _addRows = {}
 
@@ -142,8 +130,7 @@ local function commitSpellID(row, text)
         return
     end
 
-    -- Spell data may not be cached yet, in which case the row shows the ID
-    -- until it loads. Ask for it and say so rather than rejecting the entry.
+    -- Spell may not be cached yet; show the ID until it loads.
     local info = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(spellID)
     if not info then
         if C_Spell and C_Spell.RequestLoadSpellData then
@@ -152,7 +139,7 @@ local function commitSpellID(row, text)
         print("|cffffff00CCS:|r No name found for spell " .. spellID .. " yet. It was added anyway.")
     end
 
-    -- A new aura ships with no sound, so nothing plays until one is chosen.
+    -- New aura has no sound until one is chosen.
     print("|cffffff00CCS:|r Added "
         .. ((info and info.name) or ("spell " .. spellID))
         .. ". Tick its box and pick a sound to start using it.")
@@ -246,7 +233,7 @@ function CCS.AcquireAddAuraButton(parent, idx)
             row:Collapse()
             commitSpellID(row, t)
         end)
-        -- Deliberately no OnEditFocusLost handler: clicking Add takes focus
+        -- No OnEditFocusLost: clicking Add takes focus
         -- off the box, so collapsing there would hide the button mid-click.
         -- Escape, Enter, Add or the next rebuild all close it.
         eb:SetScript("OnEscapePressed", function() row:Collapse() end)

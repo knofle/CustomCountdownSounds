@@ -123,8 +123,7 @@ local function CCS_GetOrCreatePopup()
                     row._prev:Hide()
                 end
                 row._text:SetText(item.label)
-                -- Pooled rows keep whatever face they were last given, so set
-                -- it every time rather than only when it changes.
+                -- Pooled rows: set the face every time.
                 local size  = row._text._ccsSize or 12
                 local flags = row._text._ccsFlags or ""
                 if not row._text:SetFont(CCS.FONT_REGULAR, size, flags) then
@@ -213,16 +212,12 @@ local function CCS_GetOrCreatePopup()
         row._check:SetWidth(14)
         row._check:SetJustifyH("LEFT")
         row._text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        -- Register both fontstrings so applyFont re-fonts them. Pooled menu rows
-        -- weren't reachable before, so rows scrolled into view after the early
-        -- font passes kept the template font ("cutoff further down the list").
+-- Register both so applyFont reaches pooled menu rows too.
         CCS._ddLabels[#CCS._ddLabels + 1] = row._text
         CCS._ddLabels[#CCS._ddLabels + 1] = row._check
-        -- Capture the concrete face/size/flags now, so a pooled row that
-        -- previewed a custom font can always restore exactly, without relying
-        -- on SetFontObject resolving a name string.
+        -- Capture face/size/flags now so a pooled row can restore exactly.
         row._text._ccsFace, row._text._ccsSize, row._text._ccsFlags = row._text:GetFont()
-        -- Fallbacks in case GetFont is read before the font object resolves.
+
         row._text._ccsFace  = row._text._ccsFace  or "Fonts\\FRIZQT__.TTF"
         row._text._ccsSize  = row._text._ccsSize  or 12
         row._text._ccsFlags = row._text._ccsFlags or ""
@@ -236,9 +231,7 @@ local function CCS_GetOrCreatePopup()
         -- Green wash on the speaker itself while hovered.
         local prevHL = prev:CreateTexture(nil, "HIGHLIGHT")
         prevHL:SetAllPoints(); prevHL:SetColorTexture(0.4, 0.85, 0.4, 0.22)
-        -- The speaker is a child of the row, so hovering it doesn't fire the
-        -- row's own HIGHLIGHT. This ARTWORK texture, shown only while the
-        -- speaker is hovered, keeps the whole row lit to match.
+        -- Speaker hover doesn't fire the row highlight; this fakes it.
         local rowLit = row:CreateTexture(nil, "ARTWORK")
         rowLit:SetAllPoints(); rowLit:SetColorTexture(1, 1, 1, 0.1); rowLit:Hide()
         local prevTex = prev:CreateTexture(nil, "ARTWORK")
@@ -328,8 +321,7 @@ local function CCS_CreateDropdown(parent, width, height, fontSize)
         local SCROLL_W = 14
         local SEARCH_H = 22
         local hasSearch = self._widePreview or self._wantSearch
-        -- Some dropdowns (output channel, profiles) have a handful of items and
-        -- look tidier with no scroll column at all. hasSearch always keeps it.
+        -- _noScroll hides the empty scroll column (hasSearch overrides).
         local noScroll  = self._noScroll and not hasSearch
         local scrollW   = noScroll and 0 or SCROLL_W
 
@@ -357,7 +349,7 @@ local function CCS_CreateDropdown(parent, width, height, fontSize)
                              or  ((self._popupWidth or width or 110) + scrollW + PAD)
         local extraH = hasSearch and (SEARCH_H + 4) or 0
         popup:SetSize(pw, PAD*2 + visible*ROW_H + extraH)
-        -- popup lives on UIParent, match owner's scale so it resizes with the window
+        -- popup on UIParent; match owner scale.
         local ownerEff = self:GetEffectiveScale()
         local puEff    = UIParent:GetEffectiveScale()
         popup:SetScale(ownerEff / puEff)
