@@ -365,6 +365,21 @@ local function CCS_CreateDropdown(parent, width, height, fontSize)
     function btn:GetValue()       return self._value end
     function btn:SetOnSelect(fn)  self._onSelect = fn end
 
+    -- Locked = display only: no arrow, clicks ignored. Used for data-file
+    -- abilities whose unit is fixed; user-added ones stay openable.
+    function btn:SetLocked(locked)
+        self._enabled = not locked
+        if self._arrow then self._arrow:SetShown(not locked) end
+        -- Desaturate when locked so it reads as a display, not a control.
+        if self._label then
+            if locked then self._label:SetTextColor(0.5, 0.5, 0.5, 1)
+            else           self._label:SetTextColor(1, 1, 1, 1) end
+        end
+        self:SetBackdropBorderColor(locked and 0.22 or 0.4,
+                                    locked and 0.22 or 0.4,
+                                    locked and 0.22 or 0.4, 1)
+    end
+
     function btn:SetValue(value)
         self._value = value
         for _, item in ipairs(self._items) do

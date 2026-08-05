@@ -10,8 +10,13 @@
 -- Colon-prefixed keys never collide with built-in ones.
 local KEY_PREFIX = "ccs::user::"
 
-function CCS.CustomAuraKey(bossKey, spellID)
-    return KEY_PREFIX .. tostring(bossKey) .. "::" .. tostring(spellID)
+-- Key includes the unit so the same spell can be added per unit as its own row
+-- with its own settings. Player (default) omits the unit, keeping the original
+-- key format so existing saved custom auras are unaffected.
+function CCS.CustomAuraKey(bossKey, spellID, unit)
+    local base = KEY_PREFIX .. tostring(bossKey) .. "::" .. tostring(spellID)
+    if unit and unit ~= "player" then base = base .. "::" .. unit end
+    return base
 end
 
 function CCS.IsCustomAuraKey(key)
@@ -23,17 +28,26 @@ function CCS.GetCustomAuras(bossKey)
     return p.customAuras and p.customAuras[bossKey]
 end
 
-local function makeCustomAbility(bossKey, spellID)
+local function makeCustomAbility(bossKey, spellID, unit)
     local info = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(spellID)
     return {
-        key         = CCS.CustomAuraKey(bossKey, spellID),
+        key         = CCS.CustomAuraKey(bossKey, spellID, unit),
         label       = (info and info.name) or ("Spell " .. spellID),
         privateID   = spellID,
+        unit        = unit,   -- nil = player
         advanced    = true,   -- no built-in sound, so hidden until opted in
         _custom     = true,
         _customBoss = bossKey,
         _customID   = spellID,
+        _customUnit = unit,   -- nil = player; part of this row's identity
     }
+end
+
+-- Stored custom auras are either a bare spellID (legacy = player) or
+-- { id=, unit= }. Normalise to id, unit.
+local function auraFields(v)
+    if type(v) == "table" then return v.id, v.unit end
+    return v, nil
 end
 
 -- Every section entry across raid and dungeons.
@@ -61,37 +75,93 @@ function CCS.SyncCustomAuras()
         for i = #list, 1, -1 do
             if list[i]._custom then table.remove(list, i) end
         end
-        for _, spellID in ipairs(ids or {}) do
-            list[#list + 1] = makeCustomAbility(entry.bossKey, spellID)
+        for _, v in ipairs(ids or {}) do
+            local id, unit = auraFields(v)
+            list[#list + 1] = makeCustomAbility(entry.bossKey, id, unit)
         end
     end)
 end
 
-function CCS.AddCustomAura(bossKey, spellID)
+function CCS.AddCustomAura(bossKey, spellID, unit)
     if not bossKey or type(spellID) ~= "number" then return false end
+    if unit == "player" then unit = nil end
     local p = CCS.GetProfile()
     p.customAuras = p.customAuras or {}
     local list = p.customAuras[bossKey]
     if not list then list = {}; p.customAuras[bossKey] = list end
-    for _, id in ipairs(list) do
-        if id == spellID then return false, "already" end
+    for _, v in ipairs(list) do
+        local vid, vunit = auraFields(v)
+        if vid == spellID and vunit == unit then return false, "already" end
     end
-    list[#list + 1] = spellID
+    list[#list + 1] = unit and { id = spellID, unit = unit } or spellID
     CCS.SyncCustomAuras()
     return true
 end
 
-function CCS.RemoveCustomAura(bossKey, spellID)
+-- Move a custom aura's stored settings from its old key to its new key when
+-- its unit changes, including the @stack/@remove trigger keys.
+local function migrateAuraSettings(p, bossKey, spellID, oldUnit, newUnit)
+    local oldKey = CCS.CustomAuraKey(bossKey, spellID, oldUnit)
+    local newKey = CCS.CustomAuraKey(bossKey, spellID, newUnit)
+    if oldKey == newKey then return end
+    local function move(tbl)
+        if not tbl then return end
+        tbl[newKey], tbl[oldKey] = tbl[oldKey], nil
+    end
+    move(p.warnEnabled);      move(p.warnOverride)
+    move(p.countdownEnabled); move(p.countdownOverride)
+    if p.expandedSpells then move(p.expandedSpells) end
+    for _, event in ipairs(CCS.EXTRA_EVENTS) do
+        local suf = CCS.EVENT_SUFFIX[event]
+        local function moveV(tbl)
+            if not tbl then return end
+            tbl[newKey .. suf], tbl[oldKey .. suf] = tbl[oldKey .. suf], nil
+        end
+        moveV(p.warnEnabled); moveV(p.warnOverride)
+    end
+end
+
+-- Change a user-added aura's unit. Identified by its OLD unit, since the same
+-- spell can appear under several units. Moves its stored settings to the new
+-- key so the row keeps its sound/tick after the change.
+function CCS.SetCustomAuraUnit(bossKey, spellID, oldUnit, newUnit)
+    if oldUnit == "player" then oldUnit = nil end
+    if newUnit == "player" then newUnit = nil end
+    if oldUnit == newUnit then return end
+    local p = CCS.GetProfile()
+    local list = p.customAuras and p.customAuras[bossKey]
+    if not list then return end
+    -- reject if the target (spell, newUnit) already exists
+    for _, v in ipairs(list) do
+        local vid, vunit = auraFields(v)
+        if vid == spellID and vunit == newUnit then return end
+    end
+    for i, v in ipairs(list) do
+        local vid, vunit = auraFields(v)
+        if vid == spellID and vunit == oldUnit then
+            list[i] = newUnit and { id = spellID, unit = newUnit } or spellID
+            migrateAuraSettings(p, bossKey, spellID, oldUnit, newUnit)
+            CCS.SyncCustomAuras()
+            CCS.RefreshSounds()
+            if CCS._fullRebuild then CCS._fullRebuild() end
+            return
+        end
+    end
+end
+
+function CCS.RemoveCustomAura(bossKey, spellID, unit)
+    if unit == "player" then unit = nil end
     local p = CCS.GetProfile()
     local list = p.customAuras and p.customAuras[bossKey]
     if not list then return end
     for i = #list, 1, -1 do
-        if list[i] == spellID then table.remove(list, i) end
+        local vid, vunit = auraFields(list[i])
+        if vid == spellID and vunit == unit then table.remove(list, i) end
     end
     if #list == 0 then p.customAuras[bossKey] = nil end
 
     -- Drop its settings + trigger keys too (no orphans).
-    local key = CCS.CustomAuraKey(bossKey, spellID)
+    local key = CCS.CustomAuraKey(bossKey, spellID, unit)
     p.warnEnabled[key], p.warnOverride[key] = nil, nil
     p.countdownEnabled[key], p.countdownOverride[key] = nil, nil
     if p.expandedSpells then p.expandedSpells[key] = nil end
@@ -122,7 +192,8 @@ local function commitSpellID(row, text)
         return
     end
 
-    local ok, why = CCS.AddCustomAura(bossKey, spellID)
+    local unit = (row._unitDD and row._unitDD:GetValue()) or "player"
+    local ok, why = CCS.AddCustomAura(bossKey, spellID, unit)
     if not ok then
         if why == "already" then
             print("|cffffff00CCS:|r Spell " .. spellID .. " is already added to this boss.")
@@ -170,7 +241,7 @@ function CCS.AcquireAddAuraButton(parent, idx)
     if not row then
         local h = CCS.ROW_HEIGHT or 22
         row = CreateFrame("Frame", nil, parent)
-        row:SetSize(240, h)
+        row:SetSize(340, h)
 
         -- Collapsed state.
         local addBtn = CreateFrame("Button", nil, row)
@@ -206,19 +277,33 @@ function CCS.AcquireAddAuraButton(parent, idx)
         eb:SetFont(CCS.FONT_REGULAR, 11, "")
         eb:SetTextColor(1, 1, 1, 1)
 
+        -- Unit dropdown: which unit's aura the new sound listens on.
+        local unitDD = CCS.CreateDropdown(row, 84, h - 2, 11)
+        unitDD._noGreen = true
+        unitDD:SetPoint("LEFT", box, "RIGHT", 6, 0)
+        do
+            local items = {}
+            for _, u in ipairs(CCS.UNIT_ORDER) do
+                items[#items + 1] = { label = CCS.UNIT_LABEL[u], value = u }
+            end
+            unitDD:SetItems(items)
+        end
+        row._unitDD = unitDD
+
         local okBtn = CreateFrame("Button", nil, row)
         okBtn:SetSize(44, h)
-        okBtn:SetPoint("LEFT", box, "RIGHT", 6, 0)
+        okBtn:SetPoint("LEFT", unitDD, "RIGHT", 6, 0)
         styleButton(okBtn, "|cffaaaaaaAdd|r")
 
         function row:Collapse()
             eb:ClearFocus()
-            lbl:Hide(); box:Hide(); okBtn:Hide()
+            lbl:Hide(); box:Hide(); unitDD:Hide(); okBtn:Hide()
             addBtn:Show()
         end
         function row:Expand()
             addBtn:Hide()
-            lbl:Show(); box:Show(); okBtn:Show()
+            lbl:Show(); box:Show(); unitDD:Show(); okBtn:Show()
+            unitDD:SetValue("player")
             eb:SetText(""); eb:SetFocus()
         end
 

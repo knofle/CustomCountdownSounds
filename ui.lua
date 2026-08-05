@@ -643,6 +643,24 @@ local function acquireRow(scrollChild, idx)
     warnDD:SetPoint("RIGHT", raidTestBtn, "LEFT", -4, 0)
     warnDD._widePreview = true
 
+    -- Unit dropdown for the expand's info line, custom auras only. Hidden except
+    -- when a user-added ability's UnitID line is showing. Positioned in the info
+    -- branch since only that row uses it.
+    local infoDD = CCS_CreateDropdown(leftCell, 84, DROPDOWN_HEIGHT, WARN_DROPDOWN_FONT_SIZE)
+    infoDD._noGreen = true
+    infoDD:Hide()
+    -- Grey value text for data-file abilities (shown in the dropdown column
+    -- instead of the dropdown).
+    local infoValLbl = makeFontString(leftCell, "ARTWORK", "GameFontNormalSmall")
+    infoValLbl:Hide()
+    do
+        local items = {}
+        for _, u in ipairs(CCS.UNIT_ORDER) do
+            items[#items + 1] = { label = CCS.UNIT_LABEL[u], value = u }
+        end
+        infoDD:SetItems(items)
+    end
+
     local warnCB = CreateFrame("CheckButton", nil, leftCell, "UICheckButtonTemplate")
     warnCB:SetSize(CHECKBOX_SIZE, CHECKBOX_SIZE)
     warnCB:SetPoint("RIGHT", warnDD, "LEFT", -4, 0)
@@ -1037,7 +1055,7 @@ local function acquireRow(scrollChild, idx)
         withCombatGuard(function()
             local a = r._ability; if not a then return end
             if a._custom then
-                CCS.RemoveCustomAura(a._customBoss, a._customID)
+                CCS.RemoveCustomAura(a._customBoss, a._customID, a._customUnit)
                 CCS.RefreshSounds()
                 if CCS._fullRebuild then CCS._fullRebuild() end
                 return
@@ -1075,7 +1093,61 @@ local function acquireRow(scrollChild, idx)
         -- Sub-rows share their parent's spell, so repeating the icon adds
         -- nothing; the empty space also reads as indentation.
         icon:SetShown(not ability._event)
-        lbl:SetText(ability.label)
+        -- Colour the name by unit: orange target/focus, red boss1-8, default
+        -- player. Skipped for info lines, which colour their own text.
+        local uColor = (not ability._infoOnly) and CCS.UnitNameColor(ability.unit)
+        if uColor then
+            lbl:SetText(uColor .. (ability.label or "") .. "|r")
+        else
+            lbl:SetText(ability.label)
+        end
+
+        -- Info-only line (the UnitID line on expand): just a label, no warn/
+        -- countdown controls. Custom auras get an editable unit dropdown; data-
+        -- file abilities show plain text.
+        if ability._infoOnly then
+            chevron:Hide()
+            warnCB:Hide(); warnDD:Hide(); warnNoLbl:Hide()
+            raidTestBtn:Hide(); mplusTestBtn:Hide()
+            hLbl:Hide(); hCB:Hide(); hDD:Hide(); hNoLbl:Hide(); hValLbl:Hide()
+            mLbl:Hide(); mCB:Hide(); mDD:Hide(); mNoLbl:Hide(); mValLbl:Hide()
+            cdCB:Hide(); cdDD:Hide(); cdNoLbl:Hide(); cdValLbl:Hide()
+            -- "UnitID:" right-aligns just left of the dropdown column; the value
+            -- (dropdown or grey text) sits in that column, matching the row above.
+            lbl:SetText("|cff808080UnitID:|r")
+            lbl:SetJustifyH("RIGHT")
+            infoDD:ClearAllPoints()
+            infoDD:SetPoint("RIGHT", raidTestBtn, "LEFT", -4, 0)
+            -- lblFrame ends at warnCB; extend the info label's right edge to just
+            -- left of the dropdown so "UnitID:" sits beside it.
+            lblFrame:SetPoint("RIGHT", infoDD, "LEFT", -6, 0)
+            if ability._custom then
+                infoDD:SetValue(ability.unit or "player")
+                infoDD:SetLocked(false)
+                local ib, iid, iu = ability._customBoss, ability._customID, ability._customUnit
+                infoDD:SetOnSelect(function(v)
+                    CCS.SetCustomAuraUnit(ib, iid, iu, v)
+                end)
+                infoDD:Show()
+                infoValLbl:Hide()
+            else
+                infoDD:Hide()
+                -- Grey value in the same column as "No default": right-anchored.
+                infoValLbl:ClearAllPoints()
+                infoValLbl:SetPoint("RIGHT", raidTestBtn, "LEFT", -4, 0)
+                infoValLbl:SetText(CCS.UnitDisplayText(ability.unit))
+                infoValLbl:Show()
+            end
+            return
+        else
+            infoDD:Hide()
+            if infoValLbl then infoValLbl:Hide() end
+            lbl:SetJustifyH("LEFT")
+            -- Restore lblFrame's normal right edge (it's re-anchored to the info
+            -- dropdown for UnitID lines).
+            lblFrame:SetPoint("RIGHT", warnCB, "LEFT", -6, 0)
+        end
+
         -- Arrow marks a row that can open into per-trigger sub-rows.
         if not ability._event and CCS.GetExtraAuraTriggers() then
             local open = CCS.IsSpellExpanded(ability.key)
@@ -1094,6 +1166,9 @@ local function acquireRow(scrollChild, idx)
         warnDD._defaultSound = defaultWarn
         warnDD._abilityKey   = ability.key
         warnDD:SetValue(CCS.GetWarnOverride(ability.key) or "__default__")
+        -- Re-show the warn checkbox: a pooled row may have hidden it while it
+        -- was last used for an info-only line.
+        warnCB:Show()
         local warnEn = CCS.isWarnEnabled(ability.key)
         warnCB:SetChecked(warnEn)
         -- Pooled rows share one tickbox, so point its tooltip at whichever
@@ -1652,6 +1727,30 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
                             y = y - ROW_HEIGHT - 1
                         end
                     end
+                end
+
+                -- UnitID line goes LAST in the expand, under the stack/remove
+                -- sub-rows. Dropdown for user-added auras, grey text otherwise.
+                if not ability._event and CCS.IsSpellExpanded(ability.key) then
+                    rowIdx = rowIdx + 1
+                    local ur = acquireRow(scrollChild, rowIdx)
+                    local uAbility = CCS.MakeEventAbility(ability, "apply")
+                    uAbility._infoOnly = true
+                    uAbility.unit  = ability.unit
+                    uAbility._custom     = ability._custom
+                    uAbility._customBoss = ability._customBoss
+                    uAbility._customID   = ability._customID
+                    uAbility._customUnit = ability._customUnit
+                    uAbility.label = "|cff808080UnitID:|r"  -- overridden in rebind
+                    ur.leftCell:SetSize(leftW, ROW_HEIGHT)
+                    ur.leftCell:ClearAllPoints()
+                    ur.leftCell:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, y)
+                    ur.rightCell:SetSize(rightW, ROW_HEIGHT)
+                    ur.rightCell:ClearAllPoints()
+                    ur.rightCell:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", leftW, y)
+                    ur.rebind(uAbility, isMplus)
+                    ur.leftCell:Show(); ur.rightCell:Show()
+                    y = y - ROW_HEIGHT - 1
                 end
             end
         end

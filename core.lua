@@ -599,6 +599,48 @@ CCS.EVENT_SUFFIX = { apply = "", stack = "@stack", remove = "@remove" }
 CCS.EVENT_LABEL  = { apply = "Aura Applied", stack = "Stack Gain", remove = "Aura Removed" }
 -- Sub-row tints: stack faint blue, remove faint red.
 CCS.EVENT_COLOR  = { apply = "|cffabb4bc", stack = "|cffa6b7c6", remove = "|cffc6a6a6" }
+
+-- Which unit an ability's aura is watched on. "player" is the default (absent
+-- from data = player). The dropdown offers these in order.
+CCS.UNIT_ORDER = { "player", "target", "focus",
+                   "boss1", "boss2", "boss3", "boss4",
+                   "boss5", "boss6", "boss7", "boss8" }
+CCS.UNIT_LABEL = {
+    player = "Player", target = "Target", focus = "Focus",
+    boss1 = "Boss1", boss2 = "Boss2", boss3 = "Boss3", boss4 = "Boss4",
+    boss5 = "Boss5", boss6 = "Boss6", boss7 = "Boss7", boss8 = "Boss8",
+}
+-- Ability-name colour by unit: player yellow (default), target/focus orange,
+-- boss1-8 red. CCS.UnitNameColor(unit) returns the code (nil = leave default).
+CCS.UNIT_NAME_COLOR = { target = "|cffff9d5c", focus = "|cffff9d5c" }
+for i = 1, 8 do CCS.UNIT_NAME_COLOR["boss" .. i] = "|cffff5555" end
+function CCS.UnitNameColor(unit)
+    -- Multi-unit: colour by highest severity (boss > target/focus > player).
+    if type(unit) == "table" then
+        local best
+        for _, u in ipairs(unit) do
+            local c = CCS.UNIT_NAME_COLOR[u]
+            if c == "|cffff5555" then return c end  -- boss red wins outright
+            if c then best = c end
+        end
+        return best
+    end
+    if not unit or unit == "player" then return nil end
+    return CCS.UNIT_NAME_COLOR[unit]
+end
+
+-- Grey display text for a data-file ability's unit slot (like "No default").
+-- Player shows nothing; one unit shows its label; several show "Target +2".
+function CCS.UnitDisplayText(unit)
+    if not unit or unit == "player" then return "|cff777777Player|r" end
+    if type(unit) == "table" then
+        if #unit == 0 then return "|cff777777Player|r" end
+        local first = CCS.UNIT_LABEL[unit[1]] or unit[1]
+        if #unit == 1 then return "|cff777777" .. first .. "|r" end
+        return ("|cff777777%s +%d|r"):format(first, #unit - 1)
+    end
+    return "|cff777777" .. (CCS.UNIT_LABEL[unit] or unit) .. "|r"
+end
 -- Trigger tooltip bodies.
 CCS.EVENT_TIP = {
     apply  = "Play a sound when this ability's aura is applied to you.",
@@ -1269,9 +1311,11 @@ local function registerAbility(ability, diff, bossKey)
         if not paths or #paths == 0 then return end
         handles[evKey] = {}
 
+        -- Which unit's aura to listen on. Absent = player (all existing data).
+        local unit = ability.unit or "player"
         for _, spellID in ipairs(ids) do
             for _, path in ipairs(paths) do
-                local id = callAddAuraSound("player", spellID, path,
+                local id = callAddAuraSound(unit, spellID, path,
                                             CCS.GetChannel(), event)
                 if id then
                     handles[evKey][#handles[evKey] + 1] = id
