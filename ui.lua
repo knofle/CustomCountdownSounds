@@ -396,11 +396,22 @@ local function getSoundItems()
     return items
 end
 
-local function buildWarnItems(defaultKey)
-    local k = defaultKey or "__nil__"
+local function buildWarnItems(defaultKey, suggest)
+    -- Cache key folds in the suggestions, since they are per-ability.
+    local k = (defaultKey or "__nil__")
+    if suggest and #suggest > 0 then k = k .. "|" .. table.concat(suggest, ",") end
     if _warnItemsCache[k] then return _warnItemsCache[k] end
     local short = prettifyKey(defaultKey)
     local items = {{ label = short .. " (default)", shortLabel = short, value = "__default__" }}
+    -- Pinned per-ability suggestions, right under the default. These are warn
+    -- values (bundled name or file:) that aren't in LSM but are handy for this
+    -- boss. A separator marks where the full LSM list begins.
+    if suggest and #suggest > 0 then
+        for _, val in ipairs(suggest) do
+            local lbl = prettifyKey(val)
+            items[#items + 1] = { label = lbl, shortLabel = lbl, value = val }
+        end
+    end
     for _, item in ipairs(getSoundItems()) do
         items[#items + 1] = { label = item.label, shortLabel = item.label, value = item.value }
     end
@@ -459,6 +470,20 @@ end
 
 
 local ROW_HEIGHT = 22
+-- Alternating row background. An ability and all its sub-rows (stack, remove,
+-- UnitID) share one stripe; the next ability gets the other.
+-- Only the odd stripe is tinted; the even one matches the base background (no
+-- texture shown), so it reads as a single faint alternating band.
+local ZEBRA_TINT = { 1, 1, 1, 0.022 }
+local function setZebra(r, idx)
+    if idx % 2 == 1 then
+        r.zebraL:SetColorTexture(unpack(ZEBRA_TINT))
+        r.zebraR:SetColorTexture(unpack(ZEBRA_TINT))
+        r.zebraL:Show(); r.zebraR:Show()
+    else
+        r.zebraL:Hide(); r.zebraR:Hide()
+    end
+end
 CCS.ROW_HEIGHT = ROW_HEIGHT  -- custom_auras.lua sizes its button to match
 local DROPDOWN_HEIGHT       = 23  -- dropdown height, independent of ROW_HEIGHT
 local WARN_DROPDOWN_FONT_SIZE = 11  -- warning dropdown font size
@@ -606,6 +631,13 @@ local function acquireRow(scrollChild, idx)
     local leftCell  = CreateFrame("Frame", nil, scrollChild)
     local rightCell = CreateFrame("Frame", nil, scrollChild)
 
+    -- Zebra background, one per cell, on the lowest layer so content draws over
+    -- it. Colour is set per rebind by the ability's stripe index.
+    local zebraL = leftCell:CreateTexture(nil, "BACKGROUND", nil, -8)
+    zebraL:SetAllPoints(leftCell)
+    local zebraR = rightCell:CreateTexture(nil, "BACKGROUND", nil, -8)
+    zebraR:SetAllPoints(rightCell)
+
     -- Test button (label set later per module).
     local function makeTestBtn(parent, tooltipText)
         local btn = CreateFrame("Button", nil, parent)
@@ -649,10 +681,7 @@ local function acquireRow(scrollChild, idx)
     local infoDD = CCS_CreateDropdown(leftCell, 84, DROPDOWN_HEIGHT, WARN_DROPDOWN_FONT_SIZE)
     infoDD._noGreen = true
     infoDD:Hide()
-    -- Grey value text for data-file abilities (shown in the dropdown column
-    -- instead of the dropdown).
-    local infoValLbl = makeFontString(leftCell, "ARTWORK", "GameFontNormalSmall")
-    infoValLbl:Hide()
+
     do
         local items = {}
         for _, u in ipairs(CCS.UNIT_ORDER) do
@@ -745,7 +774,7 @@ local function acquireRow(scrollChild, idx)
 
     -- Row state
     local r = {
-        leftCell=leftCell, rightCell=rightCell,
+        leftCell=leftCell, rightCell=rightCell, zebraL=zebraL, zebraR=zebraR,
         warnDD=warnDD, warnCB=warnCB, warnNoLbl=warnNoLbl, icon=icon, lbl=lbl, lblFrame=lblFrame,
         chevron=chevron,
         raidTestBtn=raidTestBtn, mplusTestBtn=mplusTestBtn,
@@ -925,6 +954,9 @@ local function acquireRow(scrollChild, idx)
             GameTooltip:AddLine(" ")
             GameTooltip:AddLine(a.desc, 0.4, 1, 0.4, true)
         end
+        -- Which unit's aura this listens on.
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine(CCS.UnitTooltipLine(a.unit))
         GameTooltip:AddLine(" ")
         local idLines = getPrivateIDLines(pid)
         if #idLines == 1 and not idLines[1].label then
@@ -1105,6 +1137,8 @@ local function acquireRow(scrollChild, idx)
         -- Info-only line (the UnitID line on expand): just a label, no warn/
         -- countdown controls. Custom auras get an editable unit dropdown; data-
         -- file abilities show plain text.
+        -- UnitID info line (custom auras only): "UnitID:" label + an editable
+        -- unit dropdown, no warn/countdown controls.
         if ability._infoOnly then
             chevron:Hide()
             warnCB:Hide(); warnDD:Hide(); warnNoLbl:Hide()
@@ -1112,39 +1146,23 @@ local function acquireRow(scrollChild, idx)
             hLbl:Hide(); hCB:Hide(); hDD:Hide(); hNoLbl:Hide(); hValLbl:Hide()
             mLbl:Hide(); mCB:Hide(); mDD:Hide(); mNoLbl:Hide(); mValLbl:Hide()
             cdCB:Hide(); cdDD:Hide(); cdNoLbl:Hide(); cdValLbl:Hide()
-            -- "UnitID:" right-aligns just left of the dropdown column; the value
-            -- (dropdown or grey text) sits in that column, matching the row above.
+            -- "UnitID:" right-aligns just left of the dropdown column.
             lbl:SetText("|cff808080UnitID:|r")
             lbl:SetJustifyH("RIGHT")
             infoDD:ClearAllPoints()
             infoDD:SetPoint("RIGHT", raidTestBtn, "LEFT", -4, 0)
-            -- lblFrame ends at warnCB; extend the info label's right edge to just
-            -- left of the dropdown so "UnitID:" sits beside it.
             lblFrame:SetPoint("RIGHT", infoDD, "LEFT", -6, 0)
-            if ability._custom then
-                infoDD:SetValue(ability.unit or "player")
-                infoDD:SetLocked(false)
-                local ib, iid, iu = ability._customBoss, ability._customID, ability._customUnit
-                infoDD:SetOnSelect(function(v)
-                    CCS.SetCustomAuraUnit(ib, iid, iu, v)
-                end)
-                infoDD:Show()
-                infoValLbl:Hide()
-            else
-                infoDD:Hide()
-                -- Grey value in the same column as "No default": right-anchored.
-                infoValLbl:ClearAllPoints()
-                infoValLbl:SetPoint("RIGHT", raidTestBtn, "LEFT", -4, 0)
-                infoValLbl:SetText(CCS.UnitDisplayText(ability.unit))
-                infoValLbl:Show()
-            end
+            infoDD:SetValue(ability.unit or "player")
+            local ib, iid, iu = ability._customBoss, ability._customID, ability._customUnit
+            infoDD:SetOnSelect(function(v)
+                CCS.SetCustomAuraUnit(ib, iid, iu, v)
+            end)
+            infoDD:Show()
             return
         else
             infoDD:Hide()
-            if infoValLbl then infoValLbl:Hide() end
             lbl:SetJustifyH("LEFT")
-            -- Restore lblFrame's normal right edge (it's re-anchored to the info
-            -- dropdown for UnitID lines).
+            -- Restore lblFrame's normal right edge (re-anchored for UnitID lines).
             lblFrame:SetPoint("RIGHT", warnCB, "LEFT", -6, 0)
         end
 
@@ -1161,7 +1179,7 @@ local function acquireRow(scrollChild, idx)
         local defaultWarn = getDefaultWarn(ability)
         r._warnNoDefault = (defaultWarn == nil)
         r._warnCtrl.abilityKey = ability.key
-        warnDD:SetItems(buildWarnItems(defaultWarn))
+        warnDD:SetItems(buildWarnItems(defaultWarn, ability.suggest))
         warnDD._defaultWarn  = defaultWarn
         warnDD._defaultSound = defaultWarn
         warnDD._abilityKey   = ability.key
@@ -1498,6 +1516,7 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
 
     local y        = 4
     local rowIdx   = 0
+    local stripeIdx = 0  -- one per ability group (parent + its sub-rows)
     local hdrIdx   = 0
     local raidIdx  = 0
     local sepIdx   = 0
@@ -1688,7 +1707,9 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
             end
             if visible then
                 rowIdx = rowIdx + 1
+                stripeIdx = stripeIdx + 1
                 local r = acquireRow(scrollChild, rowIdx)
+                setZebra(r, stripeIdx)
 
                 r.leftCell:SetSize(leftW, ROW_HEIGHT)
                 r.leftCell:ClearAllPoints()
@@ -1699,7 +1720,7 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
                 r.rebind(ability, isMplus)
                 r.leftCell:Show(); r.rightCell:Show()
 
-                y = y - ROW_HEIGHT - 1
+                y = y - ROW_HEIGHT
 
                 -- One sub-row per extra aura trigger: the same spell, under its own
                 -- storage key, so each carries an independent warning sound.
@@ -1708,6 +1729,7 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
                         if CCS.ShouldShowTrigger(ability, event) then
                             rowIdx = rowIdx + 1
                             local vr = acquireRow(scrollChild, rowIdx)
+                            setZebra(vr, stripeIdx)
                             local vAbility = CCS.MakeEventAbility(ability, event)
                             -- The parent row already names the spell, so a sub-row
                             -- only needs to say which trigger it is.
@@ -1724,16 +1746,17 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
                             -- Right cell stays shown so Set Default is reachable;
                             -- its countdown controls hide themselves on sub-rows.
                             vr.leftCell:Show(); vr.rightCell:Show()
-                            y = y - ROW_HEIGHT - 1
+                            y = y - ROW_HEIGHT
                         end
                     end
                 end
 
-                -- UnitID line goes LAST in the expand, under the stack/remove
-                -- sub-rows. Dropdown for user-added auras, grey text otherwise.
-                if not ability._event and CCS.IsSpellExpanded(ability.key) then
+                -- UnitID line goes LAST in the expand, custom auras only (data-
+                -- file abilities show their unit in the tooltip instead).
+                if ability._custom and not ability._event and CCS.IsSpellExpanded(ability.key) then
                     rowIdx = rowIdx + 1
                     local ur = acquireRow(scrollChild, rowIdx)
+                    setZebra(ur, stripeIdx)
                     local uAbility = CCS.MakeEventAbility(ability, "apply")
                     uAbility._infoOnly = true
                     uAbility.unit  = ability.unit
@@ -1750,7 +1773,7 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
                     ur.rightCell:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", leftW, y)
                     ur.rebind(uAbility, isMplus)
                     ur.leftCell:Show(); ur.rightCell:Show()
-                    y = y - ROW_HEIGHT - 1
+                    y = y - ROW_HEIGHT
                 end
             end
         end
@@ -1764,7 +1787,7 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
             addBtn:ClearAllPoints()
             addBtn:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", INDENT + ROW_INDENT, y)
             addBtn:Show()
-            y = y - ROW_HEIGHT - 1
+            y = y - ROW_HEIGHT
         end
 
         y = y - 8
@@ -2030,6 +2053,9 @@ local function BuildCCSOptions(panel, isStandalone)
         "|cff80d0ffAll Warnings / All Countdowns|r flip every visible ability at once, so you can silence or enable a whole section quickly.",
         "|cff80d0ffSearch|r filters the list by ability name, including ones hidden under a collapsed boss.",
         "|cff80d0ffSound output|r sets which audio channel these sounds use, so you can control their volume from WoW's own audio panel.",
+        " ",
+        "|cffFFD100Ability colours|r",
+        "An ability name is |cffffe14dyellow|r when its aura is on |cffffe14dyou|r, |cffff9d5corange|r when it's on your |cffff9d5ctarget or focus|r, and |cffff5555red|r when it's on a |cffff5555boss frame|r. Hover an ability to see which unit it watches.",
         " ",
         "|cffFFD100Questions or feedback?|r",
         "Leave a comment on CurseForge, or contact the following.",
@@ -3033,11 +3059,15 @@ local function CreateStandaloneWindow()
     tinsert(UISpecialFrames, "CCSStandaloneWindow")
 
     local closeBtn = CreateFrame("Button", nil, win)
-    closeBtn:SetSize(22, 22)
+    closeBtn:SetSize(30, 30)
     closeBtn:SetPoint("TOPRIGHT", win, "TOPRIGHT", -4, -4)
     closeBtn:SetScript("OnClick", function() win:Hide() end)
-    -- Plain X, no background circle.
+    -- Plain X, no background circle. Sized up (~2x) from the template default.
     local cbX = closeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    do
+        local _, sz, flags = cbX:GetFont()
+        cbX:SetFont(FONT_REGULAR, (sz or 16) * 1.7, flags)
+    end
     cbX:SetPoint("CENTER")
     cbX:SetText("|cffb0b0b0\195\151|r")  -- multiplication sign, reads as a clean X
     closeBtn:SetScript("OnEnter", function() cbX:SetText("|cffffffff\195\151|r") end)

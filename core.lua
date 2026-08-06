@@ -629,18 +629,31 @@ function CCS.UnitNameColor(unit)
     return CCS.UNIT_NAME_COLOR[unit]
 end
 
--- Grey display text for a data-file ability's unit slot (like "No default").
--- Player shows nothing; one unit shows its label; several show "Target +2".
-function CCS.UnitDisplayText(unit)
-    if not unit or unit == "player" then return "|cff777777Player|r" end
-    if type(unit) == "table" then
-        if #unit == 0 then return "|cff777777Player|r" end
-        local first = CCS.UNIT_LABEL[unit[1]] or unit[1]
-        if #unit == 1 then return "|cff777777" .. first .. "|r" end
-        return ("|cff777777%s +%d|r"):format(first, #unit - 1)
+-- Tooltip line: "Aura on <Unit>" with "Aura on" light green and the unit name
+-- in its severity colour (player yellow, target/focus orange, boss red).
+CCS.UNIT_TOOLTIP_LABEL = {
+    player = "Player Frame", target = "Target Frame", focus = "Focus Frame",
+    boss1 = "Boss Frame 1", boss2 = "Boss Frame 2", boss3 = "Boss Frame 3",
+    boss4 = "Boss Frame 4", boss5 = "Boss Frame 5", boss6 = "Boss Frame 6",
+    boss7 = "Boss Frame 7", boss8 = "Boss Frame 8",
+}
+function CCS.UnitTooltipLine(unit)
+    local function one(u)
+        local name = CCS.UNIT_TOOLTIP_LABEL[u] or u
+        local col  = CCS.UNIT_NAME_COLOR[u] or "|cffffe14d"  -- player yellow
+        return col .. name .. "|r"
     end
-    return "|cff777777" .. (CCS.UNIT_LABEL[unit] or unit) .. "|r"
+    local names
+    if type(unit) == "table" and #unit > 0 then
+        local t = {}
+        for _, u in ipairs(unit) do t[#t + 1] = one(u) end
+        names = table.concat(t, ", ")
+    else
+        names = one((type(unit) == "table") and "player" or (unit or "player"))
+    end
+    return "|cff88ff88Aura on|r " .. names
 end
+
 -- Trigger tooltip bodies.
 CCS.EVENT_TIP = {
     apply  = "Play a sound when this ability's aura is applied to you.",
@@ -882,20 +895,27 @@ function CCS.SetCountdownOverride(key, diff, soundKey)
 end
 
 -- Iterate abilities for a module. cb(ability, isMplus, bossKey).
+-- Iterate abilities for a module. cb(ability, isMplus, bossKey). Scoped to the
+-- active tab: "__all__" walks the whole module, otherwise only the selected
+-- raid (by name) or dungeon (by key), so bulk actions affect just that instance.
 local function iterateModuleSpells(module, fn)
     if module == "raid" then
+        local activeRaid = (db and db.char.activeRaid) or "__all__"
         for _, entry in ipairs(CCS_Spells_Raid) do
-            if entry.abilities then
+            if entry.abilities and (activeRaid == "__all__" or entry.raid == activeRaid) then
                 for _, ability in ipairs(entry.abilities) do fn(ability, false, entry.bossKey) end
             end
         end
     elseif module == "mplus" then
+        local activeDungeon = (db and db.char.activeDungeon) or "__all__"
         for _, dungeon in ipairs(CCS.MplusDungeons) do
-            local data = dungeon.data()
-            if data then
-                for _, entry in ipairs(data) do
-                    if entry.abilities then
-                        for _, ability in ipairs(entry.abilities) do fn(ability, true, entry.bossKey) end
+            if activeDungeon == "__all__" or dungeon.key == activeDungeon then
+                local data = dungeon.data()
+                if data then
+                    for _, entry in ipairs(data) do
+                        if entry.abilities then
+                            for _, ability in ipairs(entry.abilities) do fn(ability, true, entry.bossKey) end
+                        end
                     end
                 end
             end
