@@ -29,13 +29,13 @@ CCS_Spells_Mplus_TempleOfSethraliss = {
         journalInstanceID = 1030,
         journalEncounterID = 2143,         
         abilities = {
-            { key = "tos_knot_of_snakes_target",    label = "A Knot of Snakes (target)",        privateID = 1290030,                soundM = {"file:stack","file:4s" } }, -- 4s targeted
-            { key = "tos_knot_of_snakes_stun",      label = "A Knot of Snakes (stun)",          privateID = 263958,                 soundM = nil,                            advanced = true }, -- stun after
+            { key = "tos_knot_of_snakes_target",    label = "A Knot of Snakes (Target)",        privateID = 1290030,                soundM = {"file:stack","file:4s" } }, -- 4s targeted
+            { key = "tos_knot_of_snakes_stun",      label = "A Knot of Snakes (Stun)",          privateID = 263958,                 soundM = nil,                            advanced = true }, -- stun after
             { key = "tos_burrowquake",              label = "Burrowquake",                      privateID = 1300227,                soundM = nil,                            advanced = true },
             { key = "tos_lightning_bite",           label = "Lightning Bite",                   privateID = 1308838,                soundM = nil,                            advanced = true },
             { key = "tos_serpentstorm",             label = "Serpentstorm",                     privateID = 1293048,                soundM = nil,                            advanced = true },
-            { key = "tos_thunder_spit_dot",         label = "Thunder Spit (dot)",               privateID = 1289588,                soundM = "file:ticking_5s",                                                                                            },
-            { key = "tos_thunder_spit_target",      label = "Thunder Spit (target)",            privateID = 1289109,                soundM = "file:targeted" }, -- 3s targeted
+            { key = "tos_thunder_spit_target",      label = "Thunder Spit (Target)",            privateID = 1289109,                soundM = "file:targeted" }, -- 3s targeted            
+            { key = "tos_thunder_spit_dot",         label = "Thunder Spit (Dot)",               privateID = 1289588,                soundM = "file:ticking_5s",                                                                                            },
             { key = "tos_burrow",                   label = "Burrow",                           privateID = 264206,                 soundM = nil,                            advanced = true },
             { key = "tos_electrified_ground",       label = "Electrified Ground",               privateID = 1297034,                soundM = nil,                            advanced = true },
         },

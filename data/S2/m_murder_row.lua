@@ -9,7 +9,10 @@ CCS_Spells_Mplus_MurderRow = {
         journalInstanceID = 1304,
         journalEncounterID = 2679,        
         abilities = {
+
+            { key = "mr_felshield",    label = "Felshield", unit = "target",                privateID = 1217989,                soundM = "file:shield",                             },            
             { key = "mr_corroding_spittle_boss",    label = "Corroding Spittle",                privateID = 1228198,                soundM = "dot",                            advanced = true },
+
         },
     },
 
@@ -40,7 +43,8 @@ CCS_Spells_Mplus_MurderRow = {
         abilities = {
             { key = "mr_axe_toss",                  label = "Axe Toss",                         privateID = 1214637,                soundM = {"drop","file:3,5s" } },
             { key = "mr_fel_lightning",             label = "Fel Lightning",                    privateID = 1214650,                soundM = nil,                            advanced = true },
-            { key = "mr_infernal_crush",            label = "Infernal Crush",                   privateID = 1295455,                soundM = "file:spread",                                 },
+            { key = "mr_infernal_crush_t",          label = "Infernal Crush (Target)",          privateID = 1295452,                soundM = "file:spread",                                 },
+            { key = "mr_infernal_crush_d",          label = "Infernal Crush (Dot)",             privateID = 1295455,                soundM = nil,                            advanced = true     },            
             { key = "mr_burning_steps",             label = "Burning Steps",                    privateID = 474234,                 soundM = nil,                            advanced = true },
             { key = "mr_legion_strike",             label = "Legion Strike",                    privateID = 473898,                 soundM = nil,                            advanced = true },
         },

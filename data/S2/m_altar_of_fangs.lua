@@ -12,6 +12,8 @@ CCS_Spells_Mplus_AltarOfFangs = {
             { key = "carrion_burst",                label = "Carrion Burst",                    privateID = 1307700,                soundM = nil,                           advanced = true },
             { key = "triple_shot",                  label = "Triple Shot",                      privateID = 1297876,                soundM = "file:spread" },
             { key = "regurgitate",                  label = "Regurgitate",                      privateID = 1296069,                soundM = nil,                           advanced = true },
+            { key = "aof_ssscavenging",             label = "Ssscavenging",                     privateID = 1298221,                soundM = nil,                           advanced = true, unit="boss1" },
+        
         },
     },
 
@@ -66,7 +68,7 @@ CCS_Spells_Mplus_AltarOfFangs = {
             { key = "infest",                       label = "Infest",                           privateID = 1308865,                soundM = {"file:infest","file:6s" }     },
             { key = "noxious_spray",                label = "Noxious Spray",                    privateID = 1294958,                soundM = nil,                        advanced = true },
             { key = "deadly_venom",                 label = "Deadly Venom",                     privateID = 1297422,                soundM = nil,                               advanced = true   },
-
+            { key = "aof_ravenous",                 label = "Ravenous",                         privateID = 1306308, unit = "target", soundM = nil,                           advanced = true },
 
         },
     },

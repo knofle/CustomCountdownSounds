@@ -1,5 +1,6 @@
 -- data/r_venomous_abyss.lua
 -- The Venomous Abyss (12.1.0 raid).
+-- soundH = Heroic, soundM = Mythic, soundStack = Aura Stack, soundRemove = Aura Remove
 
 
 local entries = {
@@ -13,7 +14,8 @@ local entries = {
         abilities = {
             { key = "hungering_pyre",               label = "Hungering Pyre",               privateID = 1306666,                soundH = {"soak","file:7,5s" },              soundM = {"soak","file:7,5s" } }, -- Big stack, clears adds. Share
             { key = "cremation",                    label = "Cremation",                    privateID = 1289875,                soundH = "spread",                          soundM = "spread" }, -- Aoe around people who stacked.
-            { key = "essence_rend",                 label = "Essence Rend",                 privateID = 1287434,                soundH = {"drop","file:5s" },                soundM = {"drop","file:5s" } },
+            { key = "essence_rend_dispel",          label = "Essence Rend",                 privateID = 1287434,                soundH = {"drop"},                          soundM = {"drop"} },
+            { key = "essence_rend_target",          label = "Essence Rend (Target)",        privateID = 1287427,                soundH = {"targeted","file:5s"},            soundM = {"targeted","file:5s"}, },      
             { key = "slithering_flame",             label = "Slithering Flame",             privateID = 1294933,                soundH = "clear",                           soundM = "clear" }, -- Goes on whoever didn't stack.
             { key = "hollowed",                     label = "Hollowed",                     privateID = 1284109,                soundH = nil,                               soundM = nil,                            advanced = true }, -- Dot, healing nerfed. On tank Stacks
             { key = "soulcoil_rite",                label = "Soulcoil Rite",                privateID = 1288772,                soundH = nil,                               soundM = nil,                            advanced = true }, -- Dot, stacks when spirits are consumed
@@ -23,6 +25,8 @@ local entries = {
             { key = "soulcoil_well",                label = "Soulcoil Well",                privateID = 1285623,                soundH = nil,                               soundM = nil,                            advanced = true    },
             { key = "latent_cultist",               label = "Latent Cultist",               privateID = 1288554,                soundH = nil,                               soundM = nil,                            advanced = true    },
             { key = "possession_barrage",           label = "Possession Barrage",           privateID = 1284103,                soundH = nil,                               soundM = nil,                            advanced = true    },
+            { key = "tether_of_awakening",          label = "Tether of Awakening",          privateID = 1289696,                soundH = nil,                               soundM = nil,                            advanced = true, unit="boss1",   },
+            { key = "uncoiling",                    label = "Uncoiling",                    privateID = 1290003,                soundH = nil,                               soundM = nil,                            advanced = true, unit="boss1",   },
 
         },
     },
@@ -37,14 +41,19 @@ local entries = {
             { key = "unstable_miasma",          label = "Unstable Miasma",              privateID = 1288260,                soundH = {"file:miasma","file:8s" },               soundM = {"file:miasma","file:8s" } }, -- Upon expiration, damage split players 5 yards.
             { key = "clinging_murk",            label = "Clinging Murk",                privateID = 1288297,                soundH = {"drop","file:6s" },                soundM = {"drop","file:6s" } },
             { key = "helical_toxins",           label = "Helical Toxins",               privateID = 1284590,                soundH = "clear",                           soundM = "clear" }, -- Run into people, stack to exactly 4.
-            { key = "mark_of_acid",             label = "Mark of Acid",                 privateID = 1284500,                soundH = "file:acid",                       soundM = "file:acid",                    advanced = true },
-            { key = "mark_of_blood",            label = "Mark of Blood",                privateID = 1284506,                soundH = "file:blood",                      soundM = "file:blood",                   advanced = true },
+            { key = "mark_of_acid_debuff",      label = "Mark of Acid",                 privateID = 1284500,                soundH = "file:acid",                       soundM = "file:acid",                    advanced = true },
+            { key = "mark_of_blood_debuff",     label = "Mark of Blood",                privateID = 1284506,                soundH = "file:blood",                      soundM = "file:blood",                   advanced = true },
             { key = "shifting_protovenom",      label = "Shifting Protovenom",          privateID = 1296880,                soundH = "file:venom",                           soundM = "file:venom",                              }, -- Hit other protovenoms, colliding - Protovenom Eruption
             { key = "blood_venom",              label = "Blood Venom",                  privateID = 1284210,                soundH = nil,                               soundM = nil,                            advanced = true }, -- Puddle damage
             { key = "blighted_blood",           label = "Blighted Blood",               privateID = 1284471,                soundH = nil,                               soundM = nil,                            advanced = true }, -- 18s Magic Dot
             { key = "debilitating_miasma",      label = "Debilitating Miasma",          privateID = 1284477,                soundH = nil,                               soundM = nil,                            advanced = true }, -- 10s dot, movement decrease, movement reduces stacks.
             { key = "bloodvenom_injection",     label = "Bloodvenom Injection",         privateID = 1284491,                soundH = nil,                               soundM = nil,                            advanced = true }, -- Stacking dot on target (tank)
             { key = "cultivated_burst",         label = "Cultivated Burst",             privateID = 1284947,                soundH = nil,                               soundM = nil,                            advanced = true }, -- Big dot if full duration of helical toxin.
+            { key = "mark_of_acid_buff",        label = "Mark of Acid",                 privateID = 1284494,                soundH = nil,                               soundM = nil,                            advanced = true, unit="boss1",   },
+            { key = "mark_of_blood_buff",       label = "Mark of Blood",                privateID = 1284503,                soundH = nil,                               soundM = nil,                            advanced = true, unit="boss2",   },
+            { key = "vitriolic_stasis_g",       label = "Vitriolic Stasis",             privateID = 1284606,                soundH = nil,                               soundM = nil,                            advanced = true, unit="boss1",   },
+            { key = "vitriolic_stasis_r",       label = "Vitriolic Stasis",             privateID = 1284588,                soundH = nil,                               soundM = nil,                            advanced = true, unit="boss2",   },
+            { key = "contaminate",              label = "Contaminate",                  privateID = 1284257,                soundH = nil,                               soundM = nil,                            advanced = true, unit="boss3",   },
             
         },
     },
@@ -61,18 +70,19 @@ local entries = {
             { key = "piercing_frost",               label = "Piercing Frost",               privateID = 1295954,                soundH = "file:frost",                      soundM = "file:frost" },
             { key = "frostfire_volley_fire",        label = "Frostfire Volley (Fire)",      privateID = 1295886,                soundH = "file:fire_volley",                soundM = "file:fire_volley" },
             { key = "frostfire_volley_frost",       label = "Frostfire Volley (Frost)",     privateID = 1295935,                soundH = "file:frost_volley",               soundM = "file:frost_volley" },
-            { key = "explosive_surprise",           label = "Explosive Surprise",           privateID = 1297625,                soundH = "file:bomb",                       soundM = "file:bomb",                             },            
+            { key = "explosive_surprise",           label = "Explosive Surprise",           privateID = 1297625,                soundH = {"file:bomb","file10s"},           soundM = {"file:bomb","file:10s"},                             },            
+            { key = "fire_patch",                   label = "Fire Patch",                   privateID = 1297649,                soundH = nil,                               soundM = nil,                            advanced = true },
+            { key = "frost_patch",                  label = "Frost Patch",                  privateID = 1297648,                soundH = nil,                               soundM = nil,                            advanced = true },            
             { key = "steady_strikes",               label = "Steady Strikes",               privateID = 1291929,                soundH = nil,                               soundM = nil,                            advanced = true },
             { key = "splinters",                    label = "Splinters",                    privateID = 1308853,                soundH = nil,                               soundM = nil,                            advanced = true    },
             { key = "shredding_shards",             label = "Shredding Shards",             privateID = 1295858,                soundH = nil,                               soundM = nil,                            advanced = true },
             { key = "shell_spin",                   label = "Shell Spin",                   privateID = 1291918,                soundH = nil,                               soundM = nil,                            advanced = true },
-            { key = "frost_patch",                  label = "Frost Patch",                  privateID = 1297648,                soundH = nil,                               soundM = nil,                            advanced = true },
             { key = "bounce",                       label = "Bounce",                       privateID = 1299854,                soundH = nil,                               soundM = nil,                            advanced = true    },
-            { key = "fire_patch",                   label = "Fire Patch",                   privateID = 1297649,                soundH = nil,                               soundM = nil,                            advanced = true },
             { key = "blast_wave",                   label = "Blast Wave",                   privateID = 1305844,                soundH = nil,                               soundM = nil,                            advanced = true },
             { key = "icebound_flames",              label = "Icebound Flames",              privateID = 1286922,                soundH = nil,                               soundM = nil,                            advanced = true },
             { key = "spooky_mask",                  label = "Spooky Mask",                  privateID = 1310032,                soundH = nil,                               soundM = nil,                            advanced = true,    },
-            -- No confirmed aura IDs yet (never landed on PTR). Journal IDs below are
+            { key = "united_defense",               label = "United Defense",               privateID = 1297646,                soundH = nil,                               soundM = nil,                            advanced = true, unit="boss3",    },
+
             -- likely cast IDs, so verify against logs before enabling.
             --{ key = "fungal_burst",                 label = "Fungal Burst",                 privateID = 1292292,                soundH = nil,                               soundM = nil,                            advanced = true,   desc = "Huge hit plus a 10s dot from a mushroom." },
             --{ key = "concussive_blast",             label = "Concussive Blast",             privateID = 1296247,                soundH = nil,                               soundM = nil,                            advanced = true,   desc = "Knockback plus a 12s fire dot from Gebbo's bomb." },
@@ -93,7 +103,7 @@ local entries = {
             { key = "exploding_infection",          label = "Exploding Infection",          privateID = 1295173,                soundH = {"file:exploding","file:10s" },     soundM = {"file:exploding","file:10s" } },
             { key = "siphoning_infection",          label = "Siphoning Infection",          privateID = 1295224,                soundH = "file:siphon",                     soundM = "file:siphon" },
             { key = "being_siphoned",               label = "Being Siphoned",               privateID = 1295380,                soundH = nil,                               soundM = nil,                            advanced = true },
-            { key = "stygian_infection",            label = "Stygian Infection",            privateID = 1294994,                soundH = "drop",                            soundM = "drop" },
+            { key = "stygian_infection",            label = "Stygian Infection",            privateID = 1294994,                soundH = "file:heal",                       soundM = "drop",  soundRemove = "file:clear",            },
             { key = "clotting_blood",               label = "Clotting Blood",               privateID = 1302517,                soundH = "absorb",                          soundM = "absorb",                       advanced = true },
             { key = "congealing_bolt",              label = "Congealing Bolt",              privateID = 1305833,                soundH = nil,                               soundM = nil,                            advanced = true },
             { key = "dripping_fangs",               label = "Dripping Fangs",               privateID = 1280934,                soundH = nil,                               soundM = nil,                            advanced = true },
@@ -112,12 +122,12 @@ local entries = {
         abilities = {
             { key = "venomous_surge",               label = "Venomous Surge",               privateID = 1305963,                soundH = {"file:surge","file:10s" },         soundM = {"file:surge","file:10s" } },
             { key = "serpents_fury",                label = "Serpent's Fury",               privateID = 1305621,                soundH = "file:serpents_fury",              soundM = "file:serpents_fury" },
-            { key = "virulence_1",                  label = "Virulence (Cardinal Directions)", privateID = 1297707,                soundH = {"file:spread","file:5s" },         soundM = {"file:spread","file:5s" } },
+            { key = "virulence_1",                  label = "Virulence (Cardinal Directions)", privateID = 1297707,                soundH = {"file:spread","file:5s" },         soundM = {"file:spread","file:5s" }, },
             { key = "virulence_2",                  label = "Virulence (45 degree)",        privateID = 1299899,                soundH = {"file:spread","file:5s" },         soundM = {"file:spread","file:5s" } },
-            { key = "raging_crosswinds_north",      label = "Raging Crosswinds (North)",    privateID = 1285425,                soundH = {"file:winds","file:8s" },          soundM = {"file:winds","file:8s" } },
-            { key = "raging_crosswinds_east",       label = "Raging Crosswinds (East)",     privateID = 1297096,                soundH = {"file:winds","file:8s" },          soundM = {"file:winds","file:8s" } },
-            { key = "raging_crosswinds_south",      label = "Raging Crosswinds (South)",    privateID = 1285453,                soundH = {"file:winds","file:8s" },          soundM = {"file:winds","file:8s" } },
-            { key = "raging_crosswinds_west",       label = "Raging Crosswinds (West)",     privateID = 1297111,                soundH = {"file:winds","file:8s" },          soundM = {"file:winds","file:8s" } },
+            { key = "raging_crosswinds_north",      label = "Raging Crosswinds (North)",    privateID = 1285425,                soundH = {"file:winds","file:8s" },          soundM = {"file:winds","file:8s"  }, suggest={"file:north","file:east","file:south","file:west"}, },
+            { key = "raging_crosswinds_east",       label = "Raging Crosswinds (East)",     privateID = 1297096,                soundH = {"file:winds","file:8s" },          soundM = {"file:winds","file:8s" }, suggest={"file:north","file:east","file:south","file:west"}, },
+            { key = "raging_crosswinds_south",      label = "Raging Crosswinds (South)",    privateID = 1285453,                soundH = {"file:winds","file:8s" },          soundM = {"file:winds","file:8s" }, suggest={"file:north","file:east","file:south","file:west"}, },
+            { key = "raging_crosswinds_west",       label = "Raging Crosswinds (West)",     privateID = 1297111,                soundH = {"file:winds","file:8s" },          soundM = {"file:winds","file:8s" }, suggest={"file:north","file:east","file:south","file:west"}, },
             { key = "turbulent_gusts",              label = "Turbulent Gusts",              privateID = 1285447,                soundH = nil,                               soundM = nil,                            advanced = true },
             { key = "corroding_venom",              label = "Corroding Venom",              privateID = 1282873,                soundH = nil,                               soundM = nil,                            advanced = true    },
             { key = "mutilated_gash",               label = "Mutilated Gash",               privateID = 1277051,                soundH = nil,                               soundM = nil,                            advanced = true    },
