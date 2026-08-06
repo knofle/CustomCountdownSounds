@@ -107,6 +107,7 @@ local function CCS_GetOrCreatePopup()
         local items  = popup._items or {}
         local owner  = popup._owner
         local offset = popup._offset or 0
+        local fontMissed = false  -- true if any row's custom font failed to load
         local wide   = owner and owner._widePreview
         local search = owner and (owner._widePreview or owner._wantSearch)
         for i = 1, MAX_VISIBLE do
@@ -123,11 +124,13 @@ local function CCS_GetOrCreatePopup()
                     row._prev:Hide()
                 end
                 row._text:SetText(item.label)
-                -- Pooled rows: set the face every time.
+                -- Pooled rows: set the face every time. If the custom font
+                -- isn't cached yet SetFont fails; fall back and retry shortly.
                 local size  = row._text._ccsSize or 12
                 local flags = row._text._ccsFlags or ""
                 if not row._text:SetFont(CCS.FONT_REGULAR, size, flags) then
                     row._text:SetFont(row._text._ccsFace, size, flags)
+                    fontMissed = true
                 end
                 row._check:SetText(item.value == (owner and owner._value) and "|cff00ff00*|r" or "")
                 row:ClearAllPoints()
@@ -155,6 +158,16 @@ local function CCS_GetOrCreatePopup()
             end
         end
         UpdateThumb()
+        -- A font that failed to load renders in the fallback face. Re-run once
+        -- next frame so late-loading glyphs correct themselves without needing
+        -- the user to scroll or reopen.
+        if fontMissed and not popup._fontRetry then
+            popup._fontRetry = true
+            C_Timer.After(0.05, function()
+                popup._fontRetry = nil
+                if popup:IsShown() then Refresh() end
+            end)
+        end
     end
     popup._refresh = Refresh
 

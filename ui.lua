@@ -1821,12 +1821,6 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
     end
 end
 
--- Latency profiling of the row-rebuild hot path (a file-local, so wrapped here
--- rather than via WrapModules). No overhead unless FunctionProfiler is on.
-if NumyFunctionProfiler then
-    rebindAll = NumyFunctionProfiler:Wrap("CCS", "UI", "rebindAll", rebindAll)
-end
-
 ------------------------------------------------------------
 -- Options Panel
 ------------------------------------------------------------
@@ -2907,7 +2901,6 @@ local function BuildCCSOptions(panel, isStandalone)
 
         if not built then
             built = true
-            local _buildT0 = debugprofilestop()   -- temporary: /ccs loadtime
             local w = scroll:GetWidth()
             scrollChild:SetWidth(w)
             _leftW = math.floor(w * LEFT_PANEL_FRACTION)
@@ -2917,7 +2910,6 @@ local function BuildCCSOptions(panel, isStandalone)
             updateHeaders(w)
             updateScrollBar()
             if CCS._refreshBulkUnderlines then CCS._refreshBulkUnderlines() end
-            CCS._firstBuildMs = debugprofilestop() - _buildT0   -- temporary
 
             -- Cache the chosen font path first, then start prewarm, so rows
             -- created in the background pick it up. applyFont fonts what exists.
@@ -3310,19 +3302,6 @@ SlashCmdList["CCS"] = function(msg)
         end
         print("|cffffff00CCS:|r Test — |cffffffff" .. matchedAbility.label .. "|r (" .. difficulty .. ")")
         testAbility(matchedAbility, difficulty)
-        return
-    end
-
-    if arg == "loadtime" then
-        -- Temporary probe: synchronous cost of DB load + first UI build.
-        local load  = CCS._loadMs
-        local build = CCS._firstBuildMs
-        print("|cffffff00CCS:|r load timing (synchronous work only):")
-        print(("   DB load + migrate + sync: %s ms")
-            :format(load  and ("%.2f"):format(load)  or "n/a"))
-        print(("   first window build:       %s ms%s")
-            :format(build and ("%.2f"):format(build) or "not built yet",
-                    build and "" or " (open the window once, then re-run)"))
         return
     end
 

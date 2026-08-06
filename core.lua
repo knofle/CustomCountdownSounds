@@ -514,9 +514,6 @@ local function applyModule()
     end
 end
 
-if NumyFunctionProfiler then
-    applyModule = NumyFunctionProfiler:Wrap("CCS", "Core", "applyModule", applyModule)
-end
 CCS.ApplyModule = applyModule
 
 function CCS.SetDungeon(key)
@@ -588,7 +585,9 @@ function CCS.SetModule(name)
     if not db then return end
     db.char.module = name
     applyModule()
-    CCS.RefreshAll()
+    -- No RefreshAll here: sound registration is driven by the physical instance
+    -- (see registerAll), not the viewed module, so switching tabs can't change
+    -- what's registered. Only the UI needs to update.
     if CCS._fullRebuild then CCS._fullRebuild() end
 end
 
@@ -1143,6 +1142,16 @@ CCS.FONT_DIR     = "Interface\\AddOns\\CustomCountdownSounds\\fonts\\"
 CCS.FONT_REGULAR = CCS.FONT_DIR .. "Expressway.ttf"
 CCS.FONT_BOLD    = CCS.FONT_DIR .. "Expressway Bold.ttf"
 
+-- Warm the font cache early: setting the faces on a throwaway fontstring forces
+-- WoW to load them, so later SetFont calls (e.g. dropdown rows) don't fail the
+-- first time a menu opens before the glyphs are ready.
+do
+    local warm = UIParent:CreateFontString(nil, "BACKGROUND")
+    warm:SetFont(CCS.FONT_REGULAR, 12, "")
+    warm:SetFont(CCS.FONT_BOLD, 12, "")
+    warm:Hide()
+end
+
 -- Strip a variant suffix to get back the base ability key.
 function CCS.BaseKey(key)
     if type(key) ~= "string" then return key end
@@ -1462,15 +1471,6 @@ function CCS.RefreshAbility(key, ability, bossKey)
     if diff then registerAbility(ability, diff, bossKey) end
 end
 
--- Optional latency profiling via FunctionProfiler. No overhead when the addon
--- isn't installed or profiling is off. Wrap the hot local functions here (the
--- CCS table itself is wrapped at end of file).
-if NumyFunctionProfiler then
-    registerAbility = NumyFunctionProfiler:Wrap("CCS", "Core", "registerAbility", registerAbility)
-    registerAll     = NumyFunctionProfiler:Wrap("CCS", "Core", "registerAll",     registerAll)
-    unregisterAll   = NumyFunctionProfiler:Wrap("CCS", "Core", "unregisterAll",   unregisterAll)
-end
-
 function CCS.RefreshAll()
     if InCombatLockdown() then
         pendingRefreshAll = true
@@ -1569,7 +1569,6 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         local name = ...
         if name ~= addonName then return end
 
-        local _loadT0 = debugprofilestop()   -- temporary: /ccs loadtime
         db = LibStub("AceDB-3.0"):New("CCS_DB", dbDefaults, true)
         ensureProfileTables(db.profile)
         applyModule()
@@ -1609,7 +1608,6 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
 
         if CCS.SyncCustomAuras then CCS.SyncCustomAuras() end
         if CCS.MigrateSoundNames then CCS.MigrateSoundNames() end
-        CCS._loadMs = debugprofilestop() - _loadT0   -- temporary: /ccs loadtime
         dbReady = true
         CCS._ready = true
         self:UnregisterEvent("ADDON_LOADED")
@@ -1670,9 +1668,3 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         -- Sounds persist between pulls.
     end
 end)
-
--- Profile every CCS.* function (module wrap). Locals are wrapped individually
--- above. No overhead unless FunctionProfiler is installed and profiling is on.
-if NumyFunctionProfiler then
-    NumyFunctionProfiler:WrapModules("CCS", "Core", CCS)
-end
