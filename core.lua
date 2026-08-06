@@ -143,9 +143,10 @@ applySeasonViews()
 
 local db
 
-function CCS.GetProfile()
-    if not db then return { warnEnabled={}, warnOverride={}, countdownEnabled={}, countdownOverride={}, showAllBosses={}, expandedSpells={}, customAuras={} } end
-    local p = db.profile
+-- Make sure a profile has all its sub-tables. Called once on load and on every
+-- profile switch, so GetProfile itself can stay a trivial (hot) accessor.
+local function ensureProfileTables(p)
+    if not p then return end
     if rawget(p, "warnEnabled")       == nil then rawset(p, "warnEnabled",       {}) end
     if rawget(p, "warnOverride")      == nil then rawset(p, "warnOverride",       {}) end
     if rawget(p, "countdownEnabled")  == nil then rawset(p, "countdownEnabled",   {}) end
@@ -154,7 +155,21 @@ function CCS.GetProfile()
     if rawget(p, "expandedSpells")    == nil then rawset(p, "expandedSpells",     {}) end
     if rawget(p, "customAuras")       == nil then rawset(p, "customAuras",        {}) end
     if rawget(p, "channel")           == nil then rawset(p, "channel",     "Master") end
-    return p
+end
+CCS._ensureProfileTables = ensureProfileTables
+
+-- Hot path: called constantly by the accessors. Kept trivial; the sub-tables
+-- are guaranteed present by ensureProfileTables on load/switch.
+local _emptyProfile
+function CCS.GetProfile()
+    if not db then
+        _emptyProfile = _emptyProfile or {
+            warnEnabled={}, warnOverride={}, countdownEnabled={}, countdownOverride={},
+            showAllBosses={}, expandedSpells={}, customAuras={},
+        }
+        return _emptyProfile
+    end
+    return db.profile
 end
 
 function CCS.GetChar()
@@ -499,6 +514,9 @@ local function applyModule()
     end
 end
 
+if NumyFunctionProfiler then
+    applyModule = NumyFunctionProfiler:Wrap("CCS", "Core", "applyModule", applyModule)
+end
 CCS.ApplyModule = applyModule
 
 function CCS.SetDungeon(key)
@@ -1444,6 +1462,15 @@ function CCS.RefreshAbility(key, ability, bossKey)
     if diff then registerAbility(ability, diff, bossKey) end
 end
 
+-- Optional latency profiling via FunctionProfiler. No overhead when the addon
+-- isn't installed or profiling is off. Wrap the hot local functions here (the
+-- CCS table itself is wrapped at end of file).
+if NumyFunctionProfiler then
+    registerAbility = NumyFunctionProfiler:Wrap("CCS", "Core", "registerAbility", registerAbility)
+    registerAll     = NumyFunctionProfiler:Wrap("CCS", "Core", "registerAll",     registerAll)
+    unregisterAll   = NumyFunctionProfiler:Wrap("CCS", "Core", "unregisterAll",   unregisterAll)
+end
+
 function CCS.RefreshAll()
     if InCombatLockdown() then
         pendingRefreshAll = true
@@ -1544,6 +1571,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
 
         local _loadT0 = debugprofilestop()   -- temporary: /ccs loadtime
         db = LibStub("AceDB-3.0"):New("CCS_DB", dbDefaults, true)
+        ensureProfileTables(db.profile)
         applyModule()
 
         -- Migrate old per-char minimap fields.
@@ -1569,6 +1597,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         -- Custom auras belong to the profile, so the injected rows have to be
         -- rebuilt whenever the active profile changes under us.
         local function profileSwitched()
+            ensureProfileTables(db.profile)
             if CCS.SyncCustomAuras then CCS.SyncCustomAuras() end
             if CCS.MigrateSoundNames then CCS.MigrateSoundNames() end
             CCS.RefreshAll()
@@ -1641,3 +1670,9 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         -- Sounds persist between pulls.
     end
 end)
+
+-- Profile every CCS.* function (module wrap). Locals are wrapped individually
+-- above. No overhead unless FunctionProfiler is installed and profiling is on.
+if NumyFunctionProfiler then
+    NumyFunctionProfiler:WrapModules("CCS", "Core", CCS)
+end

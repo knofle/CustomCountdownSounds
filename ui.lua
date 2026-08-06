@@ -1821,6 +1821,12 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
     end
 end
 
+-- Latency profiling of the row-rebuild hot path (a file-local, so wrapped here
+-- rather than via WrapModules). No overhead unless FunctionProfiler is on.
+if NumyFunctionProfiler then
+    rebindAll = NumyFunctionProfiler:Wrap("CCS", "UI", "rebindAll", rebindAll)
+end
+
 ------------------------------------------------------------
 -- Options Panel
 ------------------------------------------------------------
@@ -3133,10 +3139,14 @@ end
 
 local standaloneWindow
 
--- Built at PLAYER_LOGIN (off the loading screen); fallback here if /ccs fires first.
+-- Built lazily on first open, so login pays nothing. After the first build,
+-- prewarm the row pool on idle so later scrolling stays smooth.
 local function ensureStandaloneWindow()
     if not standaloneWindow then
         standaloneWindow = CreateStandaloneWindow()
+        C_Timer.After(0.5, function()
+            if CCS._prewarmRows then CCS._prewarmRows() end
+        end)
     end
     return standaloneWindow
 end
@@ -3368,13 +3378,10 @@ initFrame:SetScript("OnEvent", function(self, event, name)
     end
 
     if event == "PLAYER_LOGIN" then
-        -- build the window now, after the loading screen
-        ensureStandaloneWindow()
-        -- Prewarm rows a moment later, during idle after login, so the first
-        -- /ccs open is cheap. Deferred so it never competes with login work.
-        C_Timer.After(1, function()
-            if CCS._prewarmRows then CCS._prewarmRows() end
-        end)
+        -- Window build is deferred to first open (see toggleStandalone /
+        -- ensureStandaloneWindow), so it never costs anything at login. Nothing
+        -- to do here now; kept registered only in case future login work is
+        -- needed.
         self:UnregisterEvent("PLAYER_LOGIN")
         return
     end
