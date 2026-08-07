@@ -13,6 +13,7 @@ CCS_Spells_Mplus_AltarOfFangs = {
             { key = "triple_shot",                  label = "Triple Shot",                      privateID = 1297876,                soundM = "file:spread" },
             { key = "regurgitate",                  label = "Regurgitate",                      privateID = 1296069,                soundM = nil,                           advanced = true },
             { key = "aof_ssscavenging",             label = "Ssscavenging",                     privateID = 1298221,                soundM = nil,                           advanced = true, unit="boss1" },
+            { key = "aof_feeding_frenzy",           label = "Feeding Frenzy",                   privateID = 1307765,                soundM = nil,                           advanced = true, unit="boss1" },
         
         },
     },
