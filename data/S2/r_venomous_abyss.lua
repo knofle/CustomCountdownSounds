@@ -13,7 +13,7 @@ local entries = {
         journalEncounterID = 2888,
         abilities = {
             { key = "hungering_pyre",               label = "Hungering Pyre",               privateID = 1306666,                soundH = {"soak","file:7,5s" },             soundM = {"soak","file:7,5s" }                                          }, -- Aura is hidden
-            { key = "cremation",                    label = "Cremation",                    privateID = 1289875,                soundH = "spread",                          soundM = "spread"                                                       }, -- ok
+            { key = "cremation",                    label = "Cremation",                    privateID = 1289875,                soundH = nil,                               soundM = nil,                      advanced = true                      }, -- ok
             { key = "essence_rend_dispel",          label = "Essence Rend",                 privateID = 1287434,                soundH = {"drop"},                          soundM = {"drop"}                                                       }, -- ok
             { key = "essence_rend_target",          label = "Essence Rend (Target)",        privateID = 1287427,                soundH = {"targeted","file:5s"},            soundM = {"targeted","file:5s"},                                        }, -- ok     
             { key = "slithering_flame",             label = "Slithering Flame",             privateID = 1294933,                soundH = "clear",                           soundM = "clear"                                                        }, -- ok
