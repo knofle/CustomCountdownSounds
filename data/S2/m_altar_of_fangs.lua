@@ -10,7 +10,7 @@ CCS_Spells_Mplus_AltarOfFangs = {
         journalEncounterID = 2878,
         abilities = {
             { key = "carrion_burst",                label = "Carrion Burst",                    privateID = 1307700,                soundM = nil,                           advanced = true },
-            { key = "triple_shot",                  label = "Triple Shot",                      privateID = 1297876,                soundM = "file:spread" },
+            { key = "triple_shot",                  label = "Triple Shot",                      privateID = 1297876,                soundM = nil,                           advanced = true },    
             { key = "regurgitate",                  label = "Regurgitate",                      privateID = 1296069,                soundM = nil,                           advanced = true },
             { key = "aof_ssscavenging",             label = "Ssscavenging",                     privateID = 1298221,                soundM = nil,                           advanced = true, unit="boss1" },
             { key = "aof_feeding_frenzy",           label = "Feeding Frenzy",                   privateID = 1307765,                soundM = nil,                           advanced = true, unit="boss1" },
@@ -33,6 +33,8 @@ CCS_Spells_Mplus_AltarOfFangs = {
             { key = "death_rattle",                 label = "Death Rattle",                     privateID = 1299080,                soundM = "file:break" }, -- Stacking dot
             { key = "corrosive_fangs",              label = "Corrosive Fangs",                  privateID = 1294845,                soundM = nil,                           advanced = true    },
             { key = "vine_grip",                    label = "Vine Grip",                        privateID = {1300328,1287798,1287797 },   soundM = nil,                     advanced = true }, -- M
+            { key = "aof_toxic_barrage",                    label = "Toxic Barrage",            privateID = 1310357,                soundM = nil,                           advanced = true, unit="boss1" }, -- M
+
         },
     },
 
@@ -48,6 +50,8 @@ CCS_Spells_Mplus_AltarOfFangs = {
             { key = "ritual_venom",                 label = "Ritual Venom",                     privateID = 1300894,                soundM = nil,                            advanced = true }, -- 48s dot, big nature damage boom after
             { key = "boneslicer",                   label = "Boneslicer",                       privateID = 1301508,                soundM = nil,                            advanced = true },
             { key = "bloodletting",                 label = "Bloodletting",                     privateID = 1301231,                soundM = nil,                            advanced = true }, -- Zul'jan-specific Bloodletting
+            { key = "ritual_of_the_fang_b",         label = "Ritual of the Fang (Boss)",        privateID = 1300876,                soundM = nil,                            advanced = true, unit="boss1", },
+            
 
         },
     },
@@ -66,7 +70,7 @@ CCS_Spells_Mplus_AltarOfFangs = {
             { key = "envenom",                      label = "Envenom",                          privateID = 1307571,                soundM = nil,                        advanced = true   },
             { key = "bloodletting_trash",           label = "Bloodletting (trash)",             privateID = 1307531,                soundM = nil,                               advanced = true    },
             { key = "laced_edge",                   label = "Laced Edge",                       privateID = 1308518,                soundM = nil,                               advanced = true    },
-            { key = "infest",                       label = "Infest",                           privateID = 1308865,                soundM = {"file:infest","file:6s" }     },
+            { key = "infest",                       label = "Infest",                           privateID = 1308865,                soundM = {"file:infest","file:5s" }     },
             { key = "noxious_spray",                label = "Noxious Spray",                    privateID = 1294958,                soundM = nil,                        advanced = true },
             { key = "deadly_venom",                 label = "Deadly Venom",                     privateID = 1297422,                soundM = nil,                               advanced = true   },
             { key = "aof_ravenous",                 label = "Ravenous",                         privateID = 1306308, unit = "target", soundM = nil,                           advanced = true },

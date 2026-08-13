@@ -11,16 +11,21 @@ local entries = {
         journalInstanceID = 1317,
         journalEncounterID = 2849,         
         abilities = {
+            { key = "tg_chilling_frost",              label = "Chilling Frost",              privateID = 1313393,                soundH = "file:nymticking",                               soundM = "file:nymticking",                                          }, -- Dot and sliding debuff.
+            { key = "tg_frost_orb",                 label = "Frost Orb",                       privateID = 1313448,                soundH = nil,                               soundM = nil,                                          }, -- Dot and sliding debuff.
+            { key = "tg_abyssal_rain",              label = "Abyssal Rain",                    privateID = 1260843,                soundH = nil,                               soundM = nil,                            advanced = true },
+
             { key = "lingering_frost",              label = "Lingering Frost",              privateID = 1257654,                soundH = nil,                               soundM = nil,                            advanced = true }, -- Dot and sliding debuff.
-            { key = "tidepiercers_rush",            label = "Tidepiercer's Rush",           privateID = 1258677,                soundH = nil,                               soundM = nil,                            advanced = true }, -- Dot
+            { key = "swirling_whirlpools",            label = "Swirling Whirlpools",           privateID = 1258677,                soundH = nil,                               soundM = nil,                            advanced = true }, -- Dot
             --{ key = "tide_wave",                    label = "Tide Wave",                    privateID = 1298157,                soundH = nil,                               soundM = nil,                            advanced = true    }, -- Dunno           
-            { key = "drifting_globules",            label = "Drifting Globules",            privateID = {1257651, 1282537 },     soundH = nil,                               soundM = nil,                            advanced = true },
+            -- { key = "drifting_globules",            label = "Drifting Globules",            privateID = {1257651, 1282537 },     soundH = nil,                               soundM = nil,                            advanced = true }, -- Old ID
             { key = "water_jet_tank",              label = "Water Jet (tank)",             privateID = 1258901,                soundH = nil,                               soundM = nil,                            advanced = true },
             { key = "water_jet",                    label = "Water Jet",                    privateID = 1260637,                soundH = nil,                               soundM = nil,                            advanced = true },
-            { key = "water_flurry",                 label = "Water Flurry",                 privateID = 1282937,                soundH = nil,                               soundM = nil,                            advanced = true }, -- Journal ID, verify aura
+            { key = "iceblade_flurry",                 label = "Iceblade Flurry",                 privateID = 1282937,                soundH = nil,                               soundM = nil,                            advanced = true }, -- Journal ID, verify aura
             { key = "drenched",                     label = "Drenched",                     privateID = 1282404,                soundH = nil,                               soundM = nil,                            advanced = true }, -- Journal ID, verify aura
-            { key = "frost_barrage",                label = "Frost Barrage",                privateID = 1257608,                soundH = nil,                               soundM = nil,                            advanced = true },
-            { key = "frost_barrage_dot",            label = "Frost Barrage (dot)",          privateID = 1257644,                soundH = nil,                               soundM = nil,                            advanced = true },
+            --{ key = "frost_barrage",                label = "Frost Barrage",                privateID = 1257608,                soundH = nil,                               soundM = nil,                            advanced = true }, -- Old ID
+            --{ key = "frost_barrage_dot",            label = "Frost Barrage (dot)",          privateID = 1257644,                soundH = nil,                               soundM = nil,                            advanced = true }, -- Old ID
+            
             { key = "wild_bite",                    label = "Wild Bite",                    privateID = 1265425,                soundH = nil,                               soundM = nil,                            advanced = true },
         },
     },

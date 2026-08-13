@@ -17,6 +17,8 @@ CCS_Spells_Mplus_TempleOfSethraliss = {
 
 
             { key = "tos_tempest_winds_pacify",     label = "Tempest Winds (silence)",          privateID = 1288885,                soundM = "file:silenced",                   advanced = true },
+            { key = "tos_storm_blessed",            label = "Storm Blessed",                    privateID = 1289229,                soundM = "file:swap",                       unit="target"},
+
             --{ key = "tos_slither_strike",           label = "Slither Strike",                   privateID = 1295635,                soundM = "file:dot",                        advanced = true    }, -- REMOVED: Slither Strike no longer applies a DoT
         },
     },
