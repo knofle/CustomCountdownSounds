@@ -28,6 +28,9 @@ CCS.RegisteredSoundName = registeredName
 -- from its filename.
 CCS.FILE_SOUND_LABELS = {
     ["file:nymticking"] = "Drop + Tick",
+    ["file:ticking_5s"] = "Ticking",
+    ["file:ticking_4s"] = "Ticking",
+    ["file.ticking_3s"] = "Ticking",
 }
 
 local function stripColor(s)
