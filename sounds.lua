@@ -22,6 +22,14 @@ local function registeredName(n)
 end
 CCS.RegisteredSoundName = registeredName
 
+-- Display names for file: sounds (raw .ogg files, NOT registered in LSM). The
+-- key is the file value as used in data/overrides ("file:nymticking"); the value
+-- is what shows in the dropdown. Anything not listed just gets auto-prettified
+-- from its filename.
+CCS.FILE_SOUND_LABELS = {
+    ["file:nymticking"] = "Drop + Tick",
+}
+
 local function stripColor(s)
     return (s:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
 end

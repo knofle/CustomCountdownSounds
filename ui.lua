@@ -295,6 +295,9 @@ local COUNTDOWN_LABELS = {
 
 local function prettifyKey(key)
     if not key then return "none" end
+    -- Custom label for a file: sound, if one is defined in sounds.lua.
+    local custom = CCS.FILE_SOUND_LABELS and CCS.FILE_SOUND_LABELS[key]
+    if custom then return custom end
     local s = key:gsub("^file:", ""):gsub("_", " ")
     -- Capitalise word-initial letters only.
     s = s:gsub("^(%a)", string.upper)
