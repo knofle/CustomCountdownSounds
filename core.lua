@@ -1126,14 +1126,8 @@ end
 -- Aura Registration
 --------------------------------------------------
 
--- Aura-sound API, feature-detected newest-first (signature varies):
---   AddAuraSound                (12.1 PTR6; also stack/remove events)
---   AddAuraAppliedSound         (12.1; private restriction lifted)
---   AddPrivateAuraAppliedSound  (original; private auras only)
-local removeAuraSound      = C_UnitAuras.RemoveAuraSound
-                          or C_UnitAuras.RemoveAuraAppliedSound
-                          or C_UnitAuras.RemovePrivateAuraAppliedSound
-local hasGeneralAuraSounds = (C_UnitAuras.AddAuraSound or C_UnitAuras.AddAuraAppliedSound) ~= nil
+-- Aura-sound API (12.1+): C_UnitAuras.AddAuraSound(trigger, sound).
+local removeAuraSound = C_UnitAuras.RemoveAuraSound
 
 -- apply uses the base key; stack/remove use key@stack / key@remove.
 -- Bundled fonts: bold for large headings, regular elsewhere.
@@ -1202,24 +1196,19 @@ function CCS.MakeEventAbility(ability, event)
     }
 end
 
--- ONLY PLACE that knows the real API shape. 12.1.0 PTR 6 replaced the single
--- options table with two arguments:
+-- ONLY PLACE that knows the real API shape:
 --     C_UnitAuras.AddAuraSound(trigger, sound)
--- where trigger is an Enum.UnitAuraSoundTrigger value and sound carries the
--- unit/spell/file/channel that the old single-table call took.
-local legacyAddSound = C_UnitAuras.AddAuraAppliedSound
-                    or C_UnitAuras.AddPrivateAuraAppliedSound
-
-local TRIGGER = Enum.UnitAuraSoundTrigger and {
+-- trigger is an Enum.UnitAuraSoundTrigger value; sound carries the
+-- unit/spell/file/channel.
+local TRIGGER = {
     apply  = Enum.UnitAuraSoundTrigger.Added,
     stack  = Enum.UnitAuraSoundTrigger.ApplicationsIncreased,
     remove = Enum.UnitAuraSoundTrigger.Removed,
 }
 
--- Stack/removal triggers need the newer two-argument API. Older clients can
--- only play on application, so the whole feature stays hidden there.
+-- Kept for callers/other addons; always true on 12.1+.
 function CCS.SupportsAuraTriggers()
-    return C_UnitAuras.AddAuraSound ~= nil and TRIGGER ~= nil
+    return true
 end
 
 local function callAddAuraSound(unitToken, spellID, path, channel, event)
@@ -1229,28 +1218,20 @@ local function callAddAuraSound(unitToken, spellID, path, channel, event)
         soundFileName = path,
         outputChannel = channel,
     }
-    if C_UnitAuras.AddAuraSound and TRIGGER then
-        local trigger = TRIGGER[event or "apply"]
-        if CCS._auraSoundLog then
-            print(("|cffffff00CCS:|r spell=%s event=%s trigger=%s (%s)")
-                :format(tostring(spellID), tostring(event or "apply"),
-                        tostring(trigger), type(trigger)))
-        end
-        if trigger ~= nil then
-            local ok, id = pcall(C_UnitAuras.AddAuraSound, trigger, sound)
-            if CCS._auraSoundLog then
-                print(("   -> AddAuraSound ok=%s id=%s"):format(tostring(ok), tostring(id)))
-            end
-            if ok and id then return id end
-        elseif CCS._auraSoundLog then
-            print("   -> no trigger value for that event; skipping")
-        end
+    local trigger = TRIGGER[event or "apply"]
+    if CCS._auraSoundLog then
+        print(("|cffffff00CCS:|r spell=%s event=%s trigger=%s (%s)")
+            :format(tostring(spellID), tostring(event or "apply"),
+                    tostring(trigger), type(trigger)))
     end
-    -- Older clients only ever played on application, so never use this for
-    -- stack/remove or they'd fire at the wrong moment.
-    if legacyAddSound and (not event or event == "apply") then
-        local ok, id = pcall(legacyAddSound, sound)
+    if trigger ~= nil then
+        local ok, id = pcall(C_UnitAuras.AddAuraSound, trigger, sound)
+        if CCS._auraSoundLog then
+            print(("   -> AddAuraSound ok=%s id=%s"):format(tostring(ok), tostring(id)))
+        end
         if ok and id then return id end
+    elseif CCS._auraSoundLog then
+        print("   -> no trigger value for that event; skipping")
     end
     return nil
 end
@@ -1338,17 +1319,6 @@ local function registerAbility(ability, diff, bossKey)
     if #ids == 0 then return end
 
     -- Pre-12.1 could only attach sounds to private auras; enforce that here.
-    if not hasGeneralAuraSounds then
-        for _, spellID in ipairs(ids) do
-            if not C_UnitAuras.AuraIsPrivate(spellID) then
-                if diff and CCS._auraSoundLog then
-                    print("|cffff9900CCS:|r " .. ability.key .. " (spellID " .. spellID .. ") is not a private aura — skipping.")
-                end
-                return
-            end
-        end
-    end
-
     -- Register one event's sounds under its own storage key.
     local function registerEvent(evAbility, evKey, event)
         -- Clear old handles first, so a sound the user just turned off stops

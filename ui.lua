@@ -38,8 +38,9 @@ local function refreshText(fs)
 end
 
 local function setFontSafe(fs, path, size, flags, fbFace, fbSize, fbFlags)
-    if path and fs:SetFont(path, okSize(size), flags or "") then return end
+    if path and fs:SetFont(path, okSize(size), flags or "") then return true end
     fs:SetFont(fbFace or DEFAULT_FACE, okSize(fbSize or size), fbFlags or flags or "")
+    return false
 end
 
 local function makeFontString(parent, layer, fontObject)
@@ -61,10 +62,11 @@ end
 local _templateBtnFS = {}  -- fontstrings from UIPanelButtonTemplate buttons
 
 local function applyFont()
+    local allOk = true
     for _, e in ipairs(_fontStrings) do
         if e.fs then
-            setFontSafe(e.fs, e.bold and FONT_BOLD or FONT_REGULAR,
-                        e.size, e.flags, e.face, e.size, e.flags)
+            if not setFontSafe(e.fs, e.bold and FONT_BOLD or FONT_REGULAR,
+                        e.size, e.flags, e.face, e.size, e.flags) then allOk = false end
             refreshText(e.fs)
         end
     end
@@ -75,13 +77,13 @@ local function applyFont()
         local size  = fs._ccsSize or 10
         local flags = fs._ccsDefaultFlags or fs._ccsFlags or ""
         local face  = fs._ccsDefaultFace  or fs._ccsFace
-        setFontSafe(fs, FONT_REGULAR, size, flags, face, size, flags)
+        if not setFontSafe(fs, FONT_REGULAR, size, flags, face, size, flags) then allOk = false end
         refreshText(fs)
     end
     -- Template button labels (Raid, Mythic+, Help, etc.).
     for _, e in ipairs(_templateBtnFS) do
         if e.fs then
-            setFontSafe(e.fs, FONT_REGULAR, e.size, e.flags, e.face, e.size, e.flags)
+            if not setFontSafe(e.fs, FONT_REGULAR, e.size, e.flags, e.face, e.size, e.flags) then allOk = false end
             refreshText(e.fs)
         end
     end
@@ -92,18 +94,28 @@ local function applyFont()
     if CCS._sizeWarnBox   then CCS._sizeWarnBox()   end
     if CCS._sizeCdBox     then CCS._sizeCdBox()     end
 
+    return allOk
 end
 CCS._applyFont = applyFont
 CCS._makeFontString = makeFontString
 
--- Glyphs may load a few frames after login; re-apply the font a few times early.
+-- Glyphs may load a few frames after login. Retry applyFont until one pass
+-- lands cleanly (nothing fell back to the default face), then stop, instead of
+-- firing a fixed burst of passes over the whole prewarmed row pool.
 local _reapplyScheduled = false
 local function scheduleFontReapply()
     if _reapplyScheduled then return end
     _reapplyScheduled = true
-    for _, delay in ipairs({ 0.05, 0.15, 0.3, 0.6, 1, 2 }) do
-        C_Timer.After(delay, applyFont)
+    local attempts = 0
+    local function retry()
+        attempts = attempts + 1
+        if applyFont() or attempts >= 5 then
+            _reapplyScheduled = false
+            return
+        end
+        C_Timer.After(0.2, retry)
     end
+    C_Timer.After(0.1, retry)
 end
 
 -- Register a UIPanelButtonTemplate button's label so applyFont restyles it.
@@ -359,6 +371,9 @@ end
 local cachedSoundItems    = nil
 local _warnItemsCache     = {}
 local _countdownItemsCache = {}
+-- Spell IDs already handed to the client to cache. RequestLoadSpellData is a
+-- one-shot, so there's no point re-requesting on every rebind.
+local _spellDataRequested = {}
 
 local function getSoundItems()
     if cachedSoundItems then return cachedSoundItems end
@@ -819,6 +834,7 @@ local function acquireRow(scrollChild, idx)
     r.refreshResetBtn = refreshResetBtn
 
     local function refreshTestBtn()
+        if r._deferTest then return end
         local a = r._ability; if not a then return end
         local hasWarn = not r._warnNoDefault or CCS.isWarnEnabled(a.key)
         local hasSound
@@ -1114,6 +1130,9 @@ local function acquireRow(scrollChild, idx)
     function r.rebind(ability, isMplus)
         r._ability = ability
         r._isMplus = isMplus
+        -- Collapse the several refresh* calls below into one test-button refresh
+        -- at the end; each helper would otherwise run it again.
+        r._deferTest = true
         -- Rows are pooled, and only the branch matching the current module
         -- reassigns these. Clear them so nothing can read a value left behind
         -- by whatever ability this row held last.
@@ -1161,6 +1180,7 @@ local function acquireRow(scrollChild, idx)
                 CCS.SetCustomAuraUnit(ib, iid, iu, v)
             end)
             infoDD:Show()
+            r._deferTest = false
             return
         else
             infoDD:Hide()
@@ -1177,7 +1197,10 @@ local function acquireRow(scrollChild, idx)
         else
             chevron:Hide()
         end
-        if scalarID then C_Spell.RequestLoadSpellData(scalarID) end
+        if scalarID and not _spellDataRequested[scalarID] then
+            _spellDataRequested[scalarID] = true
+            C_Spell.RequestLoadSpellData(scalarID)
+        end
 
         local defaultWarn = getDefaultWarn(ability)
         r._warnNoDefault = (defaultWarn == nil)
@@ -1275,6 +1298,7 @@ local function acquireRow(scrollChild, idx)
         -- calls from the refresh helpers run too soon, and the countdown ones
         -- return early on sub-rows, so a pooled row would otherwise keep the
         -- previous ability's button state.
+        r._deferTest = false
         refreshTestBtn()
     end
 
@@ -1298,6 +1322,7 @@ local function acquireRow(scrollChild, idx)
     -- Resync controls from DB without repositioning.
     function r.syncFromDB()
         local a = r._ability; if not a then return end
+        r._deferTest = true
         local warnEn = CCS.isWarnEnabled(a.key)
         warnCB:SetChecked(warnEn)
         warnDD:SetEnabled(warnEn)
@@ -1310,6 +1335,8 @@ local function acquireRow(scrollChild, idx)
             mCB:SetChecked(CCS.IsCDEnabled(a.key, "M"))
             refreshHDD(); refreshMDD()
         end
+        r._deferTest = false
+        refreshTestBtn()
     end
 
     -- ctrl tables for bulk enable/disable; abilityKey filled in by rebind.
@@ -1373,6 +1400,53 @@ local function acquireHeader(scrollChild, idx)
         hl:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -4, 3)
         hl:SetColorTexture(1, 1, 1, 0.08)
         frame:EnableMouse(true)
+
+        -- Headers are pooled, so the scripts and per-entry data are set once
+        -- here and read back from the frame on each rebind (rebindAll just
+        -- stashes _entry/_bossKey/_hasAdvanced + the tooltip fields), instead
+        -- of allocating fresh closures every rebuild.
+        frame:SetScript("OnMouseUp", function(self, button)
+            local entry = self._entry; if not entry then return end
+            if button == "LeftButton" then
+                if self._bossKey and self._hasAdvanced then
+                    withCombatGuard(function()
+                        CCS.SetShowAllBoss(self._bossKey, not CCS.GetShowAllBoss(self._bossKey))
+                        if CCS._fullRebuild then CCS._fullRebuild() end
+                    end)
+                end
+            elseif button == "RightButton" then
+                local iid = entry.journalInstanceID
+                local eid = entry.journalEncounterID
+                if iid and eid then
+                    if InCombatLockdown() then
+                        print("|cffffff00CCS:|r Can't open the journal in combat.")
+                        return
+                    end
+                    local loadFn = (C_AddOns and C_AddOns.LoadAddOn) or UIParentLoadAddOn or LoadAddOn
+                    if loadFn then loadFn("Blizzard_EncounterJournal") end
+                    if EncounterJournal_OpenJournal then
+                        EncounterJournal_OpenJournal(nil, iid, eid)
+                    else
+                        print("|cffffff00CCS:|r Encounter Journal isn't available.")
+                    end
+                else
+                    print("|cffffff00CCS:|r No dungeon journal reference set for "
+                        .. (entry.boss or entry.section or "this boss")
+                        .. ". Add journalInstanceID and journalEncounterID to the entry.")
+                end
+            end
+        end)
+        -- Tooltip (anchored left, like the ability tooltip) from stored fields.
+        frame:SetScript("OnEnter", function(self)
+            if not self._ccsTipTitle then return end
+            GameTooltip:SetOwner(self, "ANCHOR_NONE")
+            GameTooltip:SetPoint("TOPRIGHT", self, "TOPLEFT", -10, 0)
+            GameTooltip:AddLine(self._ccsTipTitle, 1, 1, 1)
+            if self._ccsTipBody then GameTooltip:AddLine(self._ccsTipBody, 0.8, 0.8, 0.8, true) end
+            GameTooltip:Show()
+        end)
+        frame:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
         _pool.headers[idx] = frame
     end
     return _pool.headers[idx]
@@ -1653,46 +1727,18 @@ local function rebindAll(scrollChild, totalWidth, leftW, isMplus)
             hdr._arrow:Hide()
         end
 
-        -- Left-click: toggle "Show non-default" (only when there's anything to reveal).
-        -- Right-click: open the Encounter Journal to this boss.
-        hdr:EnableMouse(true)
-        hdr:SetScript("OnMouseUp", function(_, button)
-            if button == "LeftButton" then
-                if bossKey and hasAdvanced then
-                    withCombatGuard(function()
-                        CCS.SetShowAllBoss(bossKey, not CCS.GetShowAllBoss(bossKey))
-                        if CCS._fullRebuild then CCS._fullRebuild() end
-                    end)
-                end
-            elseif button == "RightButton" then
-                local iid = entry.journalInstanceID
-                local eid = entry.journalEncounterID
-                if iid and eid then
-                    if InCombatLockdown() then
-                        print("|cffffff00CCS:|r Can't open the journal in combat.")
-                        return
-                    end
-                    local loadFn = (C_AddOns and C_AddOns.LoadAddOn) or UIParentLoadAddOn or LoadAddOn
-                    if loadFn then loadFn("Blizzard_EncounterJournal") end
-                    if EncounterJournal_OpenJournal then
-                        EncounterJournal_OpenJournal(nil, iid, eid)
-                    else
-                        print("|cffffff00CCS:|r Encounter Journal isn't available.")
-                    end
-                else
-                    print("|cffffff00CCS:|r No dungeon journal reference set for "
-                        .. (entry.boss or entry.section or "this boss")
-                        .. ". Add journalInstanceID and journalEncounterID to the entry.")
-                end
-            end
-        end)
+        -- Left-click: toggle "Show non-default". Right-click: open the journal.
+        -- Scripts live on the pooled frame (see acquireHeader); just stash this
+        -- entry's data + tooltip text for them to read.
+        hdr._entry       = entry
+        hdr._bossKey     = bossKey
+        hdr._hasAdvanced = hasAdvanced
+        hdr._ccsTipTitle = entry.boss or entry.section or ""
         if bossKey and hasAdvanced then
-            addTooltip(hdr, entry.boss or entry.section or "",
-                "Left-click to " .. (showAll and "hide" or "show") ..
-                " non-default abilities.\nRight-click to open the dungeon journal.", true)
+            hdr._ccsTipBody = "Left-click to " .. (showAll and "hide" or "show") ..
+                " non-default abilities.\nRight-click to open the dungeon journal."
         else
-            addTooltip(hdr, entry.boss or entry.section or "",
-                "Right-click to open the dungeon journal.", true)
+            hdr._ccsTipBody = "Right-click to open the dungeon journal."
         end
 
         hdr:Show(); y = y - SECTION_HEADER_H
@@ -2350,12 +2396,17 @@ local function BuildCCSOptions(panel, isStandalone)
     searchBox:SetHeight(18)
     if searchBox.Instructions then searchBox.Instructions:SetText("Search abilities...") end
     CCS._searchBox = searchBox
+    local _searchTimer
     searchBox:HookScript("OnTextChanged", function(self)
         local q = (self:GetText() or ""):lower()
-        if q ~= searchQuery then
-            searchQuery = q
+        if q == searchQuery then return end
+        searchQuery = q
+        -- Coalesce a burst of keystrokes into a single list rebuild.
+        if _searchTimer then _searchTimer:Cancel() end
+        _searchTimer = C_Timer.NewTimer(0.1, function()
+            _searchTimer = nil
             if CCS._fullRebuild then CCS._fullRebuild() end
-        end
+        end)
     end)
 
     -- Bulk action boxes inside headerBar
@@ -2917,8 +2968,9 @@ local function BuildCCSOptions(panel, isStandalone)
             -- Cache the chosen font path first, then start prewarm, so rows
             -- created in the background pick it up. applyFont fonts what exists.
             StartPrewarm(scrollChild)
-            applyFont()  -- match any saved font choice on first open
-            scheduleFontReapply()
+            -- match any saved font choice on first open; only keep retrying if
+            -- a glyph wasn't cached yet.
+            if not applyFont() then scheduleFontReapply() end
         else
             -- Already built; re-apply module then resync.
             if CCS.ApplyModule then CCS.ApplyModule() end
@@ -3227,49 +3279,6 @@ SlashCmdList["CCS"] = function(msg)
         else
             print("|cffffff00CCS:|r Active module: |cffffffff" .. CCS.GetModule() ..
                   "|r. Use '/ccs module raid' or '/ccs module mplus'.")
-        end
-        return
-    end
-
-    if arg == "privatetest" then
-        local hasGeneral = (C_UnitAuras.AddAuraSound or C_UnitAuras.AddAuraAppliedSound) ~= nil
-        local failed = 0
-        local sources = { { label = "Raid", data = CCS_Spells_Raid } }
-        for _, dungeon in ipairs(CCS.MplusDungeons) do
-            local data = dungeon.data()
-            if data then sources[#sources + 1] = { label = dungeon.label, data = data } end
-        end
-        for _, src in ipairs(sources) do
-            for _, entry in ipairs(src.data) do
-                if entry.abilities then
-                    for _, ability in ipairs(entry.abilities) do
-                        for _, line in ipairs(getPrivateIDLines(ability.privateID)) do
-                            local id = line.id
-                            if id and id ~= 0 then
-                                if hasGeneral then
-                                    if C_Spell and C_Spell.DoesSpellExist and not C_Spell.DoesSpellExist(id) then
-                                        print("|cffff9900CCS spelltest:|r |cffff5555UNKNOWN spellID:|r " ..
-                                            ability.key .. " (spellID " .. id .. ") [" .. src.label .. "]")
-                                        failed = failed + 1
-                                    end
-                                elseif not C_UnitAuras.AuraIsPrivate(id) then
-                                    print("|cffff9900CCS privatetest:|r |cffff5555NOT private:|r " ..
-                                        ability.key .. " (spellID " .. id .. ") [" .. src.label .. "]")
-                                    failed = failed + 1
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        local tag = hasGeneral and "spelltest" or "privatetest"
-        if failed == 0 then
-            local msg2 = hasGeneral and "All spell IDs exist." or "All spell IDs are private auras."
-            print("|cffffff00CCS " .. tag .. ":|r |cff00ff00" .. msg2 .. "|r")
-        else
-            local msg2 = hasGeneral and " unknown spell ID(s) found." or " non-private spell ID(s) found."
-            print("|cffffff00CCS " .. tag .. ":|r " .. failed .. msg2)
         end
         return
     end
