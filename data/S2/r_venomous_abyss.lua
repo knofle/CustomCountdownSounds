@@ -40,7 +40,7 @@ local entries = {
         abilities = {
             { key = "unstable_miasma",          label = "Unstable Miasma",              privateID = 1288260,                    soundH = {"file:miasma","file:8s" },        soundM = {"file:miasma","file:8s" }                                     }, -- ok
             { key = "clinging_murk",            label = "Clinging Murk",                privateID = 1288297,                    soundH = {"drop","file:6s" },               soundM = {"drop","file:6s" }                                            }, -- ok
-            { key = "helical_toxins",           label = "Helical Toxins",               privateID = 1284590,                    soundH = "clear",                           soundM = "clear"                                                        }, -- ok
+            { key = "helical_toxins",           label = "Helical Toxins",               privateID = 1284590,                    soundH = "file:match",                      soundM = "file:match"                                                        }, -- ok
             { key = "mark_of_acid_debuff",      label = "Mark of Acid",                 privateID = 1284500,                    soundH = "file:acid",                       soundM = "file:acid",               advanced = true                     }, -- ok
             { key = "mark_of_blood_debuff",     label = "Mark of Blood",                privateID = 1284506,                    soundH = "file:blood",                      soundM = "file:blood",              advanced = true                     }, -- ok
             { key = "shifting_protovenom",      label = "Shifting Protovenom",          privateID = 1296880,                    soundH = "file:venom",                      soundM = "file:venom",                                                  }, -- ok
@@ -132,6 +132,8 @@ local entries = {
             { key = "tempest",                      label = "Tempest",                      privateID = 1287083,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok       
             { key = "caustic_residue",              label = "Caustic Residue",              privateID = 1296667,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
             { key = "viscous_cyst",                 label = "Viscous Cyst",                 privateID = 1287205,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
+            { key = "va_dig_in",                    label = "Dig In",                       privateID = 1286033,                soundH = nil,                               soundM = nil,                       advanced = true, unit="boss1",      }, -- unsure
+
         },
     },
     {
@@ -143,7 +145,7 @@ local entries = {
         journalEncounterID = 2887,        
         abilities = {
             { key = "coiling_ichor",                label = "Coiling Ichor",                privateID = 1290814,                soundH = {"file:drop","file:12s" },         soundM = {"file:drop","file:12s" } },
-            { key = "corrosive_spit",               label = "Corrosive Spit",               privateID = 1293979,                soundH = {"file:line","file:5s" },          soundM = {"file:line","file:5s" } },
+            { key = "corrosive_spit",               label = "Corrosive Spit",               privateID = 1293979,                soundH = {"file:targeted"},                 soundM = {"file:targeted"} },
             { key = "eternal_venom",                label = "Eternal Venom",                privateID = 1290336,                soundH = "file:venom",                      soundM = "file:venom",              advanced = true                     }, -- ok
             { key = "tva_tainted_blood",            label = "Tainted Blood",                privateID = 1310102,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
             { key = "congealed_gore_1",             label = "Congealed Gore (Intermission)",  privateID = 1306925,              soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
@@ -155,6 +157,8 @@ local entries = {
             { key = "tva_blood_torrent",            label = "Blood Torrent",                privateID = 1303230,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
             { key = "fractured",                    label = "Fractured",                    privateID = 1289092,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
             { key = "tva_visceral_burst",           label = "Visceral Burst",               privateID = 1308386,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok      
+            { key = "tva_feasted",                  label = "Feasted",                      privateID = 1310096,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok      
+
         },
     },
     {
@@ -167,11 +171,11 @@ local entries = {
         abilities = {
             { key = "dreadmarch",                   label = "Dreadmarch",                   privateID = 1297445,                soundH = "file:dreadmarch",                 soundM = "file:dreadmarch"                                              }, -- ok
             { key = "unnerving_fixation",           label = "Unnerving Fixation",           privateID = 1285911,                soundH = "fixate",                          soundM = "fixate"                                                       }, -- ok
+            { key = "gloombomb",                    label = "Gloombomb",                    privateID = 1286901,                soundH = {"file:bomb","file:5s" },          soundM = {"file:bomb","file:5s" },                                      }, -- ok            
             { key = "gravebound",                   label = "Gravebound",                   privateID = 1286837,                soundH = "file:gravebound",                 soundM = "file:gravebound"                                              }, -- ok
             { key = "shadowfang",                   label = "Shadowfang",                   privateID = 1286326,                soundH = {"spread","file:5s" },             soundM = {"spread","file:5s" },                                         }, -- ok
-            { key = "gloombomb",                    label = "Gloombomb",                    privateID = 1286901,                soundH = {"file:bomb","file:5s" },          soundM = {"file:bomb","file:5s" },                                      }, -- ok
-            { key = "volatile_venom",               label = "Volatile Venom",               privateID = 1282419,                soundH = {"drop","file:5s" },               soundM = {"drop","file:5s" }                                            }, -- ok
-            { key = "mutagenic_venom",              label = "Mutagenic Venom",              privateID = 1310498,                soundH = {"spread","file:5s" },             soundM = {"spread","file:5s" }                                          }, -- ok
+            { key = "volatile_venom",               label = "Volatile Venom",               privateID = 1282419,                soundH = {"drop","file:5s" },               soundM = {"drop","file:5s" }, soundRemove="file:pop"                    }, -- ok
+            { key = "mutagenic_venom",              label = "Mutagenic Venom",              privateID = 1310498,                soundH = {"spread","file:5s" },             soundM = {"spread","file:5s" }, soundRemove="file:pop"                  }, -- ok
             { key = "guillotine",                   label = "Guillotine",                   privateID = 1283485,                soundH = {"stack","file:5s"},               soundM = {"stack","file:5s"},                                           }, -- ok
             { key = "guillotined",                  label = "Guillotined",                  privateID = 1307425,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok            
             { key = "noxious_ground",               label = "Noxious Ground",               privateID = 1283290,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
