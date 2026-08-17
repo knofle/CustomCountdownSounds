@@ -29,8 +29,8 @@ CCS_Spells_Mplus_BlindingVale = {
             { key = "bv_bloodthirsty_gaze",         label = "Bloodthirsty Gaze",                privateID = 1237091,                soundM = "fixate" },
             { key = "bv_bloodthorn_roots",          label = "Bloodthorn Roots",                 privateID = 1259365,                soundM = "file:root" },
             { key = "bv_verdant_stomp",             label = "Verdant Stomp (Root)",             privateID = 1236747,                soundM = {nil,"file:4s"}                             },
-            { key = "bv_incise",                    label = "Incise",                           privateID = 1237267,                soundM = "file:bleed",                   advanced = true }, -- Private aura
-            { key = "bv_crunched",                  label = "Crunched",                         privateID = 1272290,                soundM = "file:stun",                    advanced = true }, -- Private aura
+            { key = "bv_incise",                    label = "Incise",                           privateID = 1237267,                soundM = nil,                       advanced = true }, -- Private aura
+            { key = "bv_crunched",                  label = "Crunched",                         privateID = 1272290,                soundM = nil,                       advanced = true }, -- Private aura
         },
     },
 

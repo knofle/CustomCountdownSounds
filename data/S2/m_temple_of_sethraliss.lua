@@ -65,7 +65,7 @@ CCS_Spells_Mplus_TempleOfSethraliss = {
         journalEncounterID = 2145,         
         abilities = {
             { key = "tos_corruption",               label = "Corruption",                       privateID = 1300877,                soundM = nil,                            advanced = true },
-            { key = "tos_corruption_burst",         label = "Corruption Burst",                 privateID = 1302826,                soundM = {nil,"file:3sfull"},              advanced = true },
+            { key = "tos_corruption_burst",         label = "Corruption Burst",                 privateID = 1302826,                soundM = {nil},              advanced = true },
             { key = "tos_shadowlash",               label = "Shadowlash",                       privateID = 1300714,                soundM = nil,                            advanced = true },
             { key = "tos_tainted_strike",           label = "Tainted Strike",                   privateID = 1303446,                soundM = nil,                            advanced = true },
             { key = "tos_vile_charge",              label = "Vile Charge",                      privateID = 1302618,                soundM = nil,                            advanced = true },

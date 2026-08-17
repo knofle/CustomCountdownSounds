@@ -9,10 +9,10 @@ CCS_Spells_Mplus_DenOfNalorakk = {
         journalInstanceID = 1311,
         journalEncounterID = 2776,        
         abilities = {
-            { key = "dn_toxic_spores",              label = "Toxic Spores",                     privateID = 1234846,                soundM = "dot",                          advanced = true },
-            { key = "dn_hearty_bellow",             label = "Hearty Bellow",                    privateID = 1235125,                soundM = "dot",                          advanced = true },
-            { key = "dn_ravenous_bellow",           label = "Ravenous Bellow",                  privateID = 1234681,                soundM = "dot",                          advanced = true },
-            { key = "dn_bonespiked",                label = "Bonespiked",                       privateID = 1235405,                soundM = nil,                            advanced = true },
+            { key = "dn_toxic_spores",              label = "Toxic Spores",                     privateID = 1234846,                soundM = nil,                           advanced = true },
+            { key = "dn_hearty_bellow",             label = "Hearty Bellow",                    privateID = 1235125,                soundM = nil,                           advanced = true },
+            { key = "dn_ravenous_bellow",           label = "Ravenous Bellow",                  privateID = 1234681,                soundM = nil,                           advanced = true },
+            { key = "dn_bonespiked",                label = "Bonespiked",                       privateID = 1235405,                soundM = nil,                           advanced = true },
         },
     },
 
@@ -24,12 +24,12 @@ CCS_Spells_Mplus_DenOfNalorakk = {
         journalInstanceID = 1311,
         journalEncounterID = 2777,          
         abilities = {
-            { key = "dn_glacial_torment",           label = "Glacial Torment",                  privateID = 1235549,                soundM = nil,                            advanced = true },
-            { key = "dn_snowdrift_boss",            label = "Snowdrift",                        privateID = 1235841,                soundM = "file:safe",                    advanced = true },
+            { key = "dn_glacial_torment",           label = "Glacial Torment",                  privateID = 1235549,                soundM = nil,                            advanced = true    },
+            { key = "dn_snowdrift_boss",            label = "Snowdrift",                        privateID = 1235841,                soundM = nil,                           advanced = true    },
             { key = "dn_blizzards_wrath",           label = "Blizzard's Wrath",                 privateID = 1236289,                soundM = nil,                            advanced = true    },
             { key = "dn_frozen_tempest",            label = "Frozen Tempest",                   privateID = 1297749,                soundM = nil,                            advanced = true    },
-            { key = "dn_winters_shroud",            label = "Winter's Shroud",                  privateID = 1235829,                soundM = nil,                            advanced = true },
-            { key = "dn_raging_squall",             label = "Raging Squall",                    privateID = 1235641,                soundM = nil,                            advanced = true },
+            { key = "dn_winters_shroud",            label = "Winter's Shroud",                  privateID = 1235829,                soundM = nil,                            advanced = true    },
+            { key = "dn_raging_squall",             label = "Raging Squall",                    privateID = 1235641,                soundM = nil,                            advanced = true    },
         },
     },
 

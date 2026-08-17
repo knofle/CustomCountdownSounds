@@ -24,10 +24,10 @@ CCS_Spells_Mplus_KingsRest = {
         journalEncounterID = 2171,          
         abilities = {
             { key = "kr_drain_fluids",              label = "Drain Fluids",                     privateID = 267618,                 soundM = "file:targeted" },
-            { key = "kr_desiccation",               label = "Desiccation",                      privateID = 267626,                 soundM = "file:debuff",                  advanced = true },
-            { key = "kr_entomb",                    label = "Entomb",                           privateID = 267702,                 soundM = "file:marked",                  advanced = true },
-            { key = "kr_wretched_discharge",        label = "Wretched Discharge",               privateID = 267763,                 soundM = nil,                     advanced = true },
-            { key = "kr_burning_ground",            label = "Burning Ground",                   privateID = 267874,                 soundM = nil,                            advanced = true    },
+            { key = "kr_desiccation",               label = "Desiccation",                      privateID = 267626,                 soundM = "file:heal",                                   },
+            { key = "kr_entomb",                    label = "Entomb",                           privateID = 267702,                 soundM = nil,                           advanced = true },
+            { key = "kr_wretched_discharge",        label = "Wretched Discharge",               privateID = 267763,                 soundM = nil,                           advanced = true },
+            { key = "kr_burning_ground",            label = "Burning Ground",                   privateID = 267874,                 soundM = nil,                           advanced = true },
 
 
         },

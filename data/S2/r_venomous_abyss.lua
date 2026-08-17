@@ -96,8 +96,8 @@ local entries = {
         abilities = {
             --{ key = "plague_froth_incubate",        label = "Plague Froth (Incubate)",      privateID = 1281910,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- 2s incubate, starts at the same time as 1281913
             --{ key = "plague_froth_dot",             label = "Plague Froth (Dot)",           privateID = 1281908,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- 6s dot, 1281913 is used instead?
-            { key = "plague_froth_mythic",          label = "Plague Froth",                 privateID = 1281913,                soundH = {"spread","file:6s" },             soundM = {"spread","file:6s" }                                          }, -- ok
-            { key = "exploding_infection",          label = "Exploding Infection",          privateID = 1295173,                soundH = {"file:exploding","file:10s" },    soundM = {"file:exploding","file:10s" }                                 }, -- ok
+            { key = "plague_froth_mythic",          label = "Plague Froth",                 privateID = {H=1281908, M=1281913}, soundH = {"spread","file:6s" },             soundM = {"spread","file:6s" }                                          }, -- ok
+            { key = "exploding_infection",          label = "Exploding Infection",          privateID = 1295173,                soundH = {"file:exploding" },               soundM = {"file:exploding" }                                            }, -- ok
             { key = "siphoning_infection",          label = "Siphoning Infection",          privateID = 1295224,                soundH = "file:siphon",                     soundM = "file:siphon"                                                  }, -- ok
             { key = "being_siphoned",               label = "Being Siphoned",               privateID = 1295380,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
             { key = "stygian_infection",            label = "Stygian Infection",            privateID = 1294994,                soundH = "file:heal",                       soundM = "drop",                            soundRemove = "file:clear", }, -- ok
@@ -205,7 +205,7 @@ local entries = {
             -- Default-on: the three things a player has to act on.
             { key = "serpents_bite_1",              label = "Serpent's Bite (Debuff)",      privateID = 1288879,                soundH = "file:fang",                       soundM = "file:fang",               advanced = true                     }, -- ok
             { key = "gnashing_extraction",          label = "Gnashing Extraction",          privateID = 1287551,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok   
-            { key = "volatile_purge",               label = "Volatile Purge",               privateID = 1306086,                soundH = {"file:purge","file:6s" },         soundM = {"file:purge","file:6s" }, advanced = true                     }, -- ok
+            { key = "volatile_purge",               label = "Volatile Purge",               privateID = {1306086, 1312967},     soundH = {"file:purge","file:6s" },         soundM = {"file:purge","file:6s" }, advanced = true                     }, -- ok
             { key = "doomscale_pheromones",         label = "Doomscale Pheromones",         privateID = 1300265,                soundH = "file:pheromones",                 soundM = "file:pheromones",         advanced = true                     }, -- ok
 
             -- Marks (short fuse, then something lands on you)

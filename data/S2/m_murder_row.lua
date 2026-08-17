@@ -11,7 +11,7 @@ CCS_Spells_Mplus_MurderRow = {
         abilities = {
 
             { key = "mr_felshield",    label = "Felshield", unit = "target",                privateID = 1217989,                soundM = "file:shield",                             },            
-            { key = "mr_corroding_spittle_boss",    label = "Corroding Spittle",                privateID = 1228198,                soundM = "dot",                            advanced = true },
+            { key = "mr_corroding_spittle_boss",    label = "Corroding Spittle",                privateID = 1228198,                soundM = nil,                            advanced = true },
 
         },
     },
