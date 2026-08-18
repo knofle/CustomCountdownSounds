@@ -38,9 +38,9 @@ local entries = {
         journalInstanceID = 1320,
         journalEncounterID = 2874,
         abilities = {
-            { key = "unstable_miasma",          label = "Unstable Miasma",              privateID = 1288260,                    soundH = {"file:miasma","file:8s" },        soundM = {"file:miasma","file:8s" }                                     }, -- ok
+            { key = "unstable_miasma",          label = "Unstable Miasma",              privateID = 1288260,                    soundH = {"file:soak","file:8s" },          soundM = {"file:soak","file:8s" }                                     }, -- ok
             { key = "clinging_murk",            label = "Clinging Murk",                privateID = 1288297,                    soundH = {"drop","file:6s" },               soundM = {"drop","file:6s" }                                            }, -- ok
-            { key = "helical_toxins",           label = "Helical Toxins",               privateID = 1284590,                    soundH = "file:match",                      soundM = "file:match"                                                        }, -- ok
+            { key = "helical_toxins",           label = "Helical Toxins",               privateID = 1284590,                    soundH = "file:match",                      soundM = "file:match", suggest = {"file:two_plus_two","file:quick_maths"}    }, -- ok
             { key = "mark_of_acid_debuff",      label = "Mark of Acid",                 privateID = 1284500,                    soundH = "file:acid",                       soundM = "file:acid",               advanced = true                     }, -- ok
             { key = "mark_of_blood_debuff",     label = "Mark of Blood",                privateID = 1284506,                    soundH = "file:blood",                      soundM = "file:blood",              advanced = true                     }, -- ok
             { key = "shifting_protovenom",      label = "Shifting Protovenom",          privateID = 1296880,                    soundH = "file:venom",                      soundM = "file:venom",                                                  }, -- ok
