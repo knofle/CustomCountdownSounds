@@ -48,7 +48,7 @@ local entries = {
             { key = "blighted_blood",           label = "Blighted Blood",               privateID = 1284471,                    soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
             { key = "debilitating_miasma",      label = "Debilitating Miasma",          privateID = 1284477,                    soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
             { key = "bloodvenom_injection",     label = "Bloodvenom Injection",         privateID = 1284491,                    soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
-            { key = "cultivated_burst",         label = "Cultivated Burst",             privateID = 1284947,                    soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
+            { key = "cultivated_burst",         label = "Cultivated Burst",             privateID = 1284947,                    soundH = nil,                               soundM = nil, suggest={"file:mans_not_hot"},                       advanced = true                     }, -- ok
             { key = "mark_of_acid_buff",        label = "Mark of Acid",                 privateID = 1284494,                    soundH = nil,                               soundM = nil,                       advanced = true, unit="boss1",      }, -- ok
             { key = "mark_of_blood_buff",       label = "Mark of Blood",                privateID = 1284503,                    soundH = nil,                               soundM = nil,                       advanced = true, unit="boss2",      }, -- ok
             { key = "vitriolic_stasis_g",       label = "Vitriolic Stasis",             privateID = 1284606,                    soundH = nil,                               soundM = nil,                       advanced = true, unit="boss1",      }, -- ok
@@ -203,17 +203,20 @@ local entries = {
         journalEncounterID = 2895,
         abilities = {
             -- Default-on: the three things a player has to act on.
-            { key = "serpents_bite_1",              label = "Serpent's Bite (Debuff)",      privateID = 1288879,                soundH = "file:fang",                       soundM = "file:fang",               advanced = true                     }, -- ok
+            { key = "serpents_bite_target",         label = "Serpent's Bite (Target)",      privateID = 1293046,                soundH = {"targeted","file:5s"},            soundM = {"targeted","file:5s"},                         }, -- ok            
+            { key = "serpents_bite_1",              label = "Serpent's Bite (Debuff)",      privateID = 1288879,                soundH = "file:bite",                       soundM = "file:bite",                                                   }, -- ok
+            
             { key = "gnashing_extraction",          label = "Gnashing Extraction",          privateID = 1287551,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok   
-            { key = "volatile_purge",               label = "Volatile Purge",               privateID = {1306086, 1312967},     soundH = {"file:purge","file:6s" },         soundM = {"file:purge","file:6s" }, advanced = true                     }, -- ok
+            { key = "volatile_purge_1",             label = "Volatile Purge (Target)",      privateID = {1312967},              soundH = {"file:purge","file:5s" },         soundM = {"file:purge","file:5s" },                      }, -- ok
+            { key = "volatile_purge_2",             label = "Volatile Purge (Dot)",         privateID = {1306086},              soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
+
             { key = "doomscale_pheromones",         label = "Doomscale Pheromones",         privateID = 1300265,                soundH = "file:pheromones",                 soundM = "file:pheromones",         advanced = true                     }, -- ok
 
             -- Marks (short fuse, then something lands on you)
-            { key = "serpents_bite_target",         label = "Serpent's Bite (Target)",      privateID = 1293046,                soundH = {"targeted","file:5s"},            soundM = {"targeted","file:5s"},    advanced = true                     }, -- ok
-            { key = "petrifying_sting_mark",        label = "Petrifying Sting (Target)",    privateID = 1305163,                soundH = {"targeted","file:5s"},            soundM = {"targeted","file:5s"},    advanced = true                     }, -- ok
+            { key = "petrifying_sting_mark",        label = "Petrifying Sting (Target)",    privateID = 1305163,                soundH = {"file:petrify","file:5s"},        soundM = {"file:petrify","file:5s"},                                        }, -- ok
             { key = "petrifying_sting",             label = "Petrifying Sting (Debuff)",    privateID = 1303414,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
-            { key = "grasping_fangs_mark",          label = "Grasping Fangs (Target)",      privateID = 1301118,                soundH = {"targeted","file:8s"},            soundM = {"targeted","file:8s"},    advanced = true                     }, -- ok
-            { key = "grasping_fangs",               label = "Grasping Fangs",               privateID = 1311611,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
+            { key = "grasping_fangs_mark",          label = "Grasping Fangs (Target)",      privateID = 1301118,                soundH = {"file:grasp","file:8s"},          soundM = {"file:grasp","file:8s"},                         }, -- ok
+            { key = "grasping_fangs",               label = "Grasping Fangs",               privateID = 1311611,                soundH = "break",                           soundM = "break",                                     }, -- ok
 
             -- Eggs
             { key = "malignant_shell",              label = "Malignant Shell",              privateID = 1295360,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
