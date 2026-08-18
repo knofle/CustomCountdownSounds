@@ -10,7 +10,7 @@ CCS = CCS or {}
 local basePath = "Interface\\AddOns\\" .. addonName .. "\\sounds\\"
 
 local lsmSounds = {
-    "amp","break","breath","burn","dot","marked","dispel","immune","adds","move","soak","spread","targeted","drop","fixate","pull","stack","safe","absorb","debuff","collect","damage","heal","slow","charge","clear","knock","spikes","skull","cross","square","moon","triangle","diamond","star","circle","in","out","right","left","magic","curse","poison","bleed","taunt"
+    "amp","break","breath","burn","dot","marked","dispel","immune","adds","move","soak","spread","targeted","drop","fixate","pull","stack","safe","root","absorb","debuff","collect","damage","heal","slow","charge","clear","knock","spikes","skull","cross","square","moon","triangle","diamond","star","circle","in","out","right","left","magic","curse","poison","bleed","taunt"
 }
 
 -- Colour is baked into the registered LSM name so "CCS:" shows in other addons'
@@ -54,7 +54,7 @@ end
 -- Picker groups + tint (display only; stored name unchanged). List order =
 -- picker order; unlisted sounds fall into a neutral group last.
 CCS.SOUND_GROUPS = {
-    { color = "|cffe8b3b3", names = { "absorb", "bleed", "curse", "debuff", "dot", "magic", "poison", "slow" } },       -- slight red
+    { color = "|cffe8b3b3", names = { "absorb", "bleed", "curse", "debuff", "dot", "magic", "poison","root","slow" } },       -- slight red
     { color = "|cffb3e0b8", names = { "in", "left", "move", "out", "right" } },                                          -- slight green
     { color = "|cffd8b8e8", names = { "break", "burn","collect", "dispel", "drop", "heal", "soak", "spread", "stack", "taunt" } },            -- slight purple
     { color = "|cffe8dfa8", names = { "adds","amp","breath", "charge", "damage", "fixate","immune", "knock", "marked", "pull", "safe", "spikes", "targeted" } }, -- slight yellow

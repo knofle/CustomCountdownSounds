@@ -93,25 +93,25 @@ CCS_Spells_Raid    = CCS_Spells_Raid_S1
 local _, _, _, tocVersion = GetBuildInfo()
 
 local mplusDungeons_120 = {
-    { key = "magisters_terrace",       label = "Magister's Terrace",      color = "|cffda8b45", icon = 7439625, data = function() return CCS_Spells_Mplus_MagistersTerrace      end },
-    { key = "maisara_caverns",         label = "Maisara Caverns",         color = "|cff7ec87e", icon = 7322719, data = function() return CCS_Spells_Mplus_MaisaraCaverns         end },
-    { key = "nexus_point_xenas",       label = "Nexus-Point Xenas",       color = "|cff6aacdc", icon = 7553062, data = function() return CCS_Spells_Mplus_NexusPointXenas        end },
-    { key = "windrunner_spire",        label = "Windrunner Spire",        color = "|cffe8c46a", icon = 7266215, data = function() return CCS_Spells_Mplus_WindrunnerSpire        end },
-    { key = "algethar_academy",        label = "Algeth'ar Academy",       color = "|cffc17de8", icon = 4578414, data = function() return CCS_Spells_Mplus_AlgetharAcademy        end },
-    { key = "pit_of_saron",            label = "Pit of Saron",            color = "|cff9dbde8", icon = 343641, data = function() return CCS_Spells_Mplus_PitOfSaron             end },
-    { key = "seat_of_the_triumvirate", label = "Seat of the Triumvirate", color = "|cffdc8fe0", icon = 1711340, data = function() return CCS_Spells_Mplus_SeatOfTheTriumvirate   end },
-    { key = "skyreach",                label = "Skyreach",                color = "|cffe8e06a", icon = 1002596, data = function() return CCS_Spells_Mplus_Skyreach               end },
+    { key = "magisters_terrace",       label = "Magister's Terrace",      color = "|cffda8b45", icon = 7439625, zoneID = 2811, data = function() return CCS_Spells_Mplus_MagistersTerrace      end },
+    { key = "maisara_caverns",         label = "Maisara Caverns",         color = "|cff7ec87e", icon = 7322719, zoneID = 2874, data = function() return CCS_Spells_Mplus_MaisaraCaverns         end },
+    { key = "nexus_point_xenas",       label = "Nexus-Point Xenas",       color = "|cff6aacdc", icon = 7553062, zoneID = 2915, data = function() return CCS_Spells_Mplus_NexusPointXenas        end },
+    { key = "windrunner_spire",        label = "Windrunner Spire",        color = "|cffe8c46a", icon = 7266215, zoneID = 2805, data = function() return CCS_Spells_Mplus_WindrunnerSpire        end },
+    { key = "algethar_academy",        label = "Algeth'ar Academy",       color = "|cffc17de8", icon = 4578414, zoneID = 2526, data = function() return CCS_Spells_Mplus_AlgetharAcademy        end },
+    { key = "pit_of_saron",            label = "Pit of Saron",            color = "|cff9dbde8", icon = 343641, zoneID = 658, data = function() return CCS_Spells_Mplus_PitOfSaron             end },
+    { key = "seat_of_the_triumvirate", label = "Seat of the Triumvirate", color = "|cffdc8fe0", icon = 1711340, zoneID = 1753, data = function() return CCS_Spells_Mplus_SeatOfTheTriumvirate   end },
+    { key = "skyreach",                label = "Skyreach",                color = "|cffe8e06a", icon = 1002596, zoneID = 1209, data = function() return CCS_Spells_Mplus_Skyreach               end },
 }
 
 local mplusDungeons_121 = {
-    { key = "murder_row",              label = "Murder Row",              color = "|cffe07a3a", icon = 7266213, data = function() return CCS_Spells_Mplus_MurderRow             end },
-    { key = "den_of_nalorakk",         label = "Den of Nalorakk",         color = "|cff6dab5a", icon = 7266214, data = function() return CCS_Spells_Mplus_DenOfNalorakk         end },
-    { key = "blinding_vale",           label = "The Blinding Vale",       color = "|cff8ae0d4", icon = 7354408, data = function() return CCS_Spells_Mplus_BlindingVale          end },
-    { key = "voidscar_arena",          label = "Voidscar Arena",          color = "|cff8e5acb", icon = 7439626, data = function() return CCS_Spells_Mplus_VoidscarArena         end },
-    { key = "altar_of_fangs",          label = "Altar of Fangs",          color = "|cffc04a4a", icon = 7956175, data = function() return CCS_Spells_Mplus_AltarOfFangs          end },
-    { key = "ruby_life_pools",         label = "Ruby Life Pools",         color = "|cffe04a5a", icon = 4578416, data = function() return CCS_Spells_Mplus_RubyLifePools         end },
-    { key = "temple_of_sethraliss",    label = "Temple of Sethraliss",    color = "|cff5cb46c", icon = 2011143, data = function() return CCS_Spells_Mplus_TempleOfSethraliss    end },
-    { key = "kings_rest",              label = "Kings' Rest",             color = "|cffd4af37", icon = 2011123, data = function() return CCS_Spells_Mplus_KingsRest             end },
+    { key = "murder_row",              label = "Murder Row",              color = "|cffe07a3a", icon = 7266213, zoneID = 2813, data = function() return CCS_Spells_Mplus_MurderRow             end },
+    { key = "den_of_nalorakk",         label = "Den of Nalorakk",         color = "|cff6dab5a", icon = 7266214, zoneID = 2825, data = function() return CCS_Spells_Mplus_DenOfNalorakk         end },
+    { key = "blinding_vale",           label = "The Blinding Vale",       color = "|cff8ae0d4", icon = 7354408, zoneID = 2859, data = function() return CCS_Spells_Mplus_BlindingVale          end },
+    { key = "voidscar_arena",          label = "Voidscar Arena",          color = "|cff8e5acb", icon = 7439626, zoneID = 2923, data = function() return CCS_Spells_Mplus_VoidscarArena         end },
+    { key = "altar_of_fangs",          label = "Altar of Fangs",          color = "|cffc04a4a", icon = 7956175, zoneID = 2993, data = function() return CCS_Spells_Mplus_AltarOfFangs          end },
+    { key = "ruby_life_pools",         label = "Ruby Life Pools",         color = "|cffe04a5a", icon = 4578416, zoneID = 2521, data = function() return CCS_Spells_Mplus_RubyLifePools         end },
+    { key = "temple_of_sethraliss",    label = "Temple of Sethraliss",    color = "|cff5cb46c", icon = 2011143, zoneID = 1877, data = function() return CCS_Spells_Mplus_TempleOfSethraliss    end },
+    { key = "kings_rest",              label = "Kings' Rest",             color = "|cffd4af37", icon = 2011123, zoneID = 1762, data = function() return CCS_Spells_Mplus_KingsRest             end },
 }
 
 -- All seasons stay loaded; dropdown only picks which the UI shows.
@@ -1384,12 +1384,17 @@ local function registerAll()
     elseif instType == "party" and CCS.MPLUS_ENABLED then
         for _, season in ipairs(CCS.SEASON_ORDER) do
             for _, dungeon in ipairs(CCS.SeasonDungeons[season] or {}) do
-                local data = dungeon.data()
-                if data then
-                    for _, entry in ipairs(data) do
-                        if entry.abilities and entryInZone(entry, zone) then
-                            for _, ability in ipairs(entry.abilities) do
-                                registerAbility(ability, diff, entry.bossKey)
+                -- Dungeon-level zone gate: a dungeon with a zoneID only registers
+                -- in that instance; without one it loads in any mythic dungeon /
+                -- keystone (default), matching the old behaviour.
+                if not dungeon.zoneID or dungeon.zoneID == zone then
+                    local data = dungeon.data()
+                    if data then
+                        for _, entry in ipairs(data) do
+                            if entry.abilities and entryInZone(entry, zone) then
+                                for _, ability in ipairs(entry.abilities) do
+                                    registerAbility(ability, diff, entry.bossKey)
+                                end
                             end
                         end
                     end
