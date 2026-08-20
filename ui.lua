@@ -2208,7 +2208,11 @@ local function BuildCCSOptions(panel, isStandalone)
 
     -- Output channel dropdown (below the title) + scale slider (next to title).
     local settingsBox = CreateFrame("Frame", nil, topBlock)
-    settingsBox:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, 8)
+    -- Anchor to the frame, not the title fontstring. On a cold-font login the
+    -- title has no measured height yet, so a BOTTOMLEFT anchor leaves this row
+    -- unpositioned until a relayout (/reload or a scale change). A fixed frame
+    -- anchor positions it at build time regardless of font state.
+    settingsBox:SetPoint("TOPLEFT", topBlock, "TOPLEFT", 16, -20)
     settingsBox:SetSize(410, 46)   -- two rows: output controls, then volume
 
     local chanLbl = makeFontString(settingsBox, "ARTWORK", "GameFontNormalSmall")
