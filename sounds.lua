@@ -10,7 +10,7 @@ CCS = CCS or {}
 local basePath = "Interface\\AddOns\\" .. addonName .. "\\sounds\\"
 
 local lsmSounds = {
-    "amp","break","breath","burn","dot","marked","dispel","immune","adds","move","soak","spread","targeted","drop","fixate","pull","stack","safe","root","absorb","debuff","collect","damage","heal","slow","charge","clear","knock","spikes","skull","cross","square","moon","triangle","diamond","star","circle","in","out","right","left","magic","curse","poison","bleed","taunt"
+    "amp","break","breath","burn","dot","marked","dispel","immune","adds","move","soak","spread","targeted","drop","fixate","pull","stack","safe","root","absorb","debuff","collect","damage","heal","slow","charge","clear","knock","venom","spikes","skull","cross","square","moon","triangle","diamond","star","circle","in","out","right","left","magic","curse","poison","bleed","taunt"
 }
 
 -- Colour is baked into the registered LSM name so "CCS:" shows in other addons'
