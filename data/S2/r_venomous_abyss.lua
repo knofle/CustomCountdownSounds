@@ -17,7 +17,7 @@ local entries = {
             { key = "essence_rend_dispel",          label = "Essence Rend",                 privateID = 1287434,                soundH = {"drop"},                          soundM = {"drop"}                                                       }, -- ok          
             { key = "slithering_flame",             label = "Slithering Flame",             privateID = 1294933,                soundH = {"clear","file:8s"},               soundM = {"clear","file:8s"}                                            }, -- ok
             { key = "cremation",                    label = "Cremation",                    privateID = 1289875,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok               }
-            { key = "hollowed",                     label = "Hollowed",                     privateID = 1284109,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
+            { key = "hollowed",                     label = "Hollowing Strikes",            privateID = 1284109,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
             { key = "soulcoil_rite",                label = "Soulcoil Rite",                privateID = 1288772,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
             { key = "corpse_blight",                label = "Corpse Blight",                privateID = 1307939,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
             { key = "ritual_burn",                  label = "Ritual Burn",                  privateID = 1297624,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
@@ -25,7 +25,10 @@ local entries = {
             { key = "soulcoil_well",                label = "Soulcoil Well",                privateID = 1285623,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
             { key = "latent_cultist",               label = "Latent Cultist",               privateID = 1288554,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
             { key = "possession_barrage",           label = "Possession Barrage",           privateID = 1284103,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
-            { key = "immortal_coil",                label = "Immortal Coil",                privateID = 1300524,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
+            { key = "immortal_coil",                label = "Immortal Coil",                privateID = 1300521,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
+            { key = "va_swirling_spirits",          label = "Swirling Spirits",             privateID = 1300239,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
+            
+            { key = "va_invoke",                    label = "Invoke",                       privateID = 1299722,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
 
             { key = "tether_of_awakening",          label = "Tether of Awakening",          privateID = 1289696,                soundH = nil,                               soundM = nil,                       advanced = true, unit="boss1",      }, -- ok
             { key = "uncoiling",                    label = "Uncoiling",                    privateID = 1290003,                soundH = nil,                               soundM = nil,                       advanced = true, unit="boss1",      }, -- ok
@@ -68,12 +71,18 @@ local entries = {
         journalEncounterID = 2894,        
         abilities = {
             { key = "mighty_thud",                  label = "Mighty Thud",                  privateID = 1296092,                soundH = "targeted",                        soundM = "targeted"                                                     }, -- ok
+            { key = "va_aftershock",                  label = "Aftershock",                 privateID = 1310500,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
+
             { key = "blink_nova",                   label = "Blink Nova",                   privateID = 1296025,                soundH = {"file:blink","file:7s"},          soundM = {"file:blink","file:7s"},                                      }, -- ok, does not show on logs            
             { key = "frostfire_volley_fire",        label = "Frostfire Volley (Fire)",      privateID = 1295886,                soundH = {"file:fire_volley","file:7s"},    soundM = {"file:fire_volley","file:7s"},    suggest = {"file:fire"},    }, -- ok, tooltip says 8s, but might be 7s based on testing?
             { key = "frostfire_volley_frost",       label = "Frostfire Volley (Frost)",     privateID = 1295935,                soundH = {"file:frost_volley","file:7s"},   soundM = {"file:frost_volley","file:7s"},   suggest = {"file:frost"},   }, -- ok, tooltip says 8s, but might be 7s based on testing?          
+            { key = "explosive_surprise",           label = "Explosive Surprise",           privateID = 1297625,                soundH = {"file:bomb","file:10s"},          soundM = {"file:bomb","file:10s"},                                      }, -- ok            
+            { key = "disgusting_fish",              label = "Disgusting Fish",              privateID = 1292490,                soundH = "file:fish",                       soundM = "file:fish",                                                   }, -- ok
+            { key = "50_lb_salmon",                 label = "50-Lb Midnight Salmon",        privateID = 1308013,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
+            { key = "rotting_voidfin",              label = "Rotting Voidfin",              privateID = 1308014,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
+
             { key = "burning_flames",               label = "Burning Flames",               privateID = 1295928,                soundH = nil,                               soundM = nil,                               soundRemove = "file:clear", }, -- ok
             { key = "piercing_frost",               label = "Piercing Frost",               privateID = 1295954,                soundH = nil,                               soundM = nil,                               soundRemove = "file:clear", }, -- ok
-            { key = "explosive_surprise",           label = "Explosive Surprise",           privateID = 1297625,                soundH = {"file:bomb","file:10s"},          soundM = {"file:bomb","file:10s"},                                      }, -- ok            
             { key = "fire_patch",                   label = "Fire Patch",                   privateID = 1297649,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
             { key = "frost_patch",                  label = "Frost Patch",                  privateID = 1297648,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok            
             { key = "steady_strikes",               label = "Steady Strikes",               privateID = 1291929,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
@@ -83,9 +92,13 @@ local entries = {
             { key = "bounce",                       label = "Bounce",                       privateID = 1299854,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
             { key = "blast_wave",                   label = "Blast Wave",                   privateID = 1305844,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
             { key = "icebound_flames",              label = "Icebound Flames",              privateID = 1286922,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
-            { key = "spooky_mask",                  label = "Spooky Mask",                  privateID = 1310032,                soundH = nil,                               soundM = nil,                       advanced = true,                    }, -- ok
+            --{ key = "spooky_mask",                  label = "Spooky Mask",                  privateID = 1310032,                soundH = nil,                               soundM = nil,                       advanced = true,                    }, -- ok
+            { key = "va_haunting_spirits",          label = "Haunting Spirits",             privateID = 1310561,                soundH = nil,                               soundM = nil,                       advanced = true,                    }, -- ok
+            { key = "va_spreading_flames",          label = "Spreading Flames",             privateID = 1297650,                soundH = nil,                               soundM = nil,                       advanced = true,                    }, -- ok
+
             { key = "fungal_burst",                 label = "Fungal Burst",                 privateID = 1292292,                soundH = nil,                               soundM = nil,                       advanced = true,                    }, -- ok
             { key = "united_defense",               label = "United Defense",               privateID = 1297646,                soundH = nil,                               soundM = nil,                       advanced = true, unit="boss3",      }, -- ok
+
         },
     },
     {
