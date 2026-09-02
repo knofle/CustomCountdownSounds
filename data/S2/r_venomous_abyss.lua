@@ -226,7 +226,7 @@ local entries = {
             { key = "serpents_bite_1",              label = "Serpent's Bite (Debuff)",      privateID = 1288879,                soundH = "file:bite",                       soundM = "file:bite",                                                   }, -- ok
             
             { key = "gnashing_extraction",          label = "Gnashing Extraction",          privateID = 1287551,                soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok   
-            { key = "volatile_purge_1",             label = "Volatile Purge (Target)",      privateID = {1312967},              soundH = {"file:purge","file:5s" },         soundM = {"file:purge","file:5s" },                      }, -- ok
+            { key = "volatile_purge_1",             label = "Volatile Purge (Target)",      privateID = {1312967},              soundH = {"file:spread","file:5s" },         soundM = {"file:spread","file:5s" },                      }, -- ok
             { key = "volatile_purge_2",             label = "Volatile Purge (Dot)",         privateID = {1306086},              soundH = nil,                               soundM = nil,                       advanced = true                     }, -- ok
 
             { key = "doomscale_pheromones",         label = "Doomscale Pheromones",         privateID = 1300265,                soundH = "file:pheromones",                 soundM = "file:pheromones",         advanced = true                     }, -- ok
