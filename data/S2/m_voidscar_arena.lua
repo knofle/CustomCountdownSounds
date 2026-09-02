@@ -72,7 +72,7 @@ CCS_Spells_Mplus_VoidscarArena = {
             { key = "va_demoralizing_shout",        label = "Demoralizing Shout",               privateID = 1298899,                soundM = nil,                            advanced = true },
             
             { key = "va_savage_leap",               label = "Savage Leap",                      privateID = 1267894,                soundM = nil,                            advanced = true    },
-            { key = "va_null_eruption_t",           label = "Null Eruption (Target)",           privateID = 1299905,                soundM = {"file:out","file:7s"},                            },
+            { key = "va_null_eruption_t",           label = "Null Eruption (Target)",           privateID = 1299905,                soundM = {"file:out","file:4s"},                            },
             { key = "va_null_eruption_dot",         label = "Null Eruption (Dot)",              privateID = 1299913,                soundM = nil,                            advanced = true },
 
             { key = "va_venomous_spit",             label = "Venomous Spit",                    privateID = 1249712,                soundM = nil,                            advanced = true },
