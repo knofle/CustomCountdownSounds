@@ -2,7 +2,7 @@
 ## Title: Custom Countdown Sounds
 ## Notes: Private aura sounds for Midnight bosses.
 ## Author: Knofle
-## Version: 0.7.10
+## Version: 0.7.11
 ## SavedVariables: CCS_DB
 ## IconTexture: Interface\AddOns\CustomCountdownSounds\icon.tga
 
