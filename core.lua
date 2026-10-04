@@ -81,6 +81,10 @@ local dbDefaults = {
         activeRaid           = "__all__",
         customTimerOverride  = false,
         scale                = 1.0,   -- standalone window scale
+        throttleSeconds      = 0,     -- min gap before the same aura sound replays (0 = no limit)
+    },
+    global = {
+        seenDisclaimer1215 = false,   -- account-wide: one-time 12.1.5 notice
     },
 }
 
@@ -175,6 +179,11 @@ end
 function CCS.GetChar()
     if not db then return dbDefaults.char end
     return db.char
+end
+
+function CCS.GetGlobal()
+    if not db then return dbDefaults.global end
+    return db.global
 end
 
 function CCS.GetProfileName()
@@ -764,6 +773,18 @@ function CCS.SetScale(v)
     end
 end
 
+-- Global aura-sound throttle (seconds). Passed to AddAuraSound so the client
+-- won't replay the same aura's sound more often than this. 0 = no limit.
+function CCS.GetThrottle()
+    local v = CCS.GetChar().throttleSeconds
+    return type(v) == "number" and v or 0
+end
+function CCS.SetThrottle(v)
+    if type(v) ~= "number" then return end
+    CCS.GetChar().throttleSeconds = math.max(0, math.min(5, v))
+    CCS.RefreshSounds()   -- re-register so the new throttle takes effect
+end
+
 function CCS.GetShowAllBoss(bossKey)
     if not bossKey then return false end
     return CCS.GetProfile().showAllBosses[bossKey] == true
@@ -883,9 +904,26 @@ function CCS.WarnDefault(ability)
     return s
 end
 
+-- 12.1.5 capped aura sound files at 5 seconds, so any countdown timer of 5.5s
+-- or longer can no longer play. On that patch (and later) treat such long
+-- countdown defaults as absent, so they drop out of the UI and never register,
+-- without having to edit every data file. Pre-12.1.5 builds are unaffected.
+local _capCountdowns = (tocVersion or 0) >= 120105
+local function countdownTooLong(key)
+    if type(key) ~= "string" then return false end
+    local whole, frac = key:match("^file:(%d+),?(%d*)s")
+    if not whole then return false end
+    local secs = tonumber(whole) + ((frac ~= "" and tonumber("0." .. frac)) or 0)
+    return secs >= 5.5
+end
+
 function CCS.CountdownDefault(ability, diff)
     local s = (diff == "M") and ability.soundM or ability.soundH
-    if type(s) == "table" then return s[2] end
+    if type(s) == "table" then
+        local cd = s[2]
+        if _capCountdowns and countdownTooLong(cd) then return nil end
+        return cd
+    end
     return nil
 end
 
@@ -1218,6 +1256,9 @@ local function callAddAuraSound(unitToken, spellID, path, channel, event)
         soundFileName = path,
         outputChannel = channel,
     }
+    -- Optional 12.x throttle: minimum gap before this aura's sound replays.
+    local throttle = CCS.GetThrottle and CCS.GetThrottle() or 0
+    if throttle > 0 then sound.throttleSeconds = throttle end
     local trigger = TRIGGER[event or "apply"]
     if CCS._auraSoundLog then
         print(("|cffffff00CCS:|r spell=%s event=%s trigger=%s (%s)")
@@ -1241,10 +1282,21 @@ local handles = {}
 local pendingRefreshAll = false
 local pendingRefreshKeys = {}
 
--- Protected aura-sound APIs are blocked during combat lockdown and while dead.
+-- 12.x AddOn restriction state (Combat / Encounter). AddAuraSound stays blocked
+-- while a restriction is active even after InCombatLockdown() reads false, which
+-- is what produced the rare ADDON_ACTION_BLOCKED on long pulls. Track it from
+-- ADDON_RESTRICTION_STATE_CHANGED.
+local _restrictions = {}
+local function restricted()
+    return next(_restrictions) ~= nil
+end
+
+-- Protected aura-sound APIs are blocked during combat lockdown, while dead, and
+-- while any AddOn restriction is active.
 local function canRegister()
     if InCombatLockdown() then return false end
     if UnitIsDeadOrGhost("player") then return false end
+    if restricted() then return false end
     return true
 end
 
@@ -1437,7 +1489,7 @@ end
 --------------------------------------------------
 
 function CCS.RefreshAbility(key, ability, bossKey)
-    if InCombatLockdown() then
+    if not canRegister() then
         pendingRefreshKeys[key] = {ability = ability, bossKey = bossKey}
         return
     end
@@ -1447,7 +1499,7 @@ function CCS.RefreshAbility(key, ability, bossKey)
 end
 
 function CCS.RefreshAll()
-    if InCombatLockdown() then
+    if not canRegister() then
         pendingRefreshAll = true
         return
     end
@@ -1535,6 +1587,7 @@ eventFrame:RegisterEvent("PLAYER_UNGHOST")
 eventFrame:RegisterEvent("PLAYER_ALIVE")
 eventFrame:RegisterEvent("ENCOUNTER_END")
 eventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+eventFrame:RegisterEvent("ADDON_RESTRICTION_STATE_CHANGED")
 
 local dbReady = false
 local pendingEnterWorld = false
@@ -1637,6 +1690,22 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
     elseif event == "PLAYER_REGEN_ENABLED" or event == "PLAYER_UNGHOST" or event == "PLAYER_ALIVE" then
         if pendingRefreshAll or next(pendingRefreshKeys) then
             flushPending()
+        end
+
+    elseif event == "ADDON_RESTRICTION_STATE_CHANGED" then
+        -- Authoritative signal for when protected calls become legal again.
+        local rType, rState = ...
+        local T = Enum and Enum.AddOnRestrictionType
+        local S = Enum and Enum.AddOnRestrictionState
+        if T and S and (rType == T.Combat or rType == T.Encounter) then
+            if rState == S.Active then
+                _restrictions[rType] = true
+            elseif rState == S.Inactive then
+                _restrictions[rType] = nil
+                if not restricted() and (pendingRefreshAll or next(pendingRefreshKeys)) then
+                    flushPending()
+                end
+            end
         end
 
     elseif event == "ENCOUNTER_END" then

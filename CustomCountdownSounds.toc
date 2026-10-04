@@ -1,8 +1,8 @@
-## Interface:  120100
+## Interface:  120100, 120105
 ## Title: Custom Countdown Sounds
 ## Notes: Private aura sounds for Midnight bosses.
 ## Author: Knofle
-## Version: 0.7.11
+## Version: 0.8.1
 ## SavedVariables: CCS_DB
 ## IconTexture: Interface\AddOns\CustomCountdownSounds\icon.tga
 
@@ -37,6 +37,7 @@ data\S1\m_windrunner_spire.lua
 # Season 2
 data\S2\r_venomous_abyss.lua
 data\S2\r_the_tidebound_grotto.lua
+data\S2\r_the_unbinding_of_kithix.lua
 data\S2\m_altar_of_fangs.lua
 data\S2\m_blinding_vale.lua
 data\S2\m_den_of_nalorakk.lua

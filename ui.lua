@@ -279,15 +279,9 @@ local COUNTDOWN_KEYS = {
     "file:2s", "file:2,5s",
     "file:3s", "file:3,5s",
     "file:4s", "file:4,5s",
-    "file:5s", "file:5,5s",
-    "file:6s", "file:6,5s",
-    "file:7s", "file:7,5s",
-    "file:8s", "file:8,5s",
-    "file:9s", "file:9,5s",
-    "file:10s","file:10,5s",
-    "file:11s","file:11,5s",
-    "file:12s","file:12,5s",
-    "file:13s",
+    "file:5s",
+    -- 5.5s and up removed: Blizzard caps aura sound files at 5 seconds, so
+    -- longer countdown files no longer play.
 }
 local COUNTDOWN_LABELS = {
     ["file:2s"]="2.0 Seconds",   ["file:2,5s"]="2.5 Seconds",
@@ -584,6 +578,8 @@ local RAID_COLORS = {
     -- 12.1.0
     ["The Venomous Abyss"]  = "|cff7fbf3f",
     ["The Tidebound Grotto"] = "|cff4dabd7",
+    -- 12.1.5
+    ["The Unbinding of Kith'ix"] = "|cffc17de8",
 }
 
 local RAID_ICONS = {
@@ -595,6 +591,8 @@ local RAID_ICONS = {
     -- 12.1.0
     ["The Venomous Abyss"]  = 8039569,
     ["The Tidebound Grotto"] = 3012069,  -- placeholder
+    -- 12.1.5
+    ["The Unbinding of Kith'ix"] = 8214194,
 }
 
 ------------------------------------------------------------
@@ -2122,6 +2120,61 @@ local function BuildCCSOptions(panel, isStandalone)
         end
     end)
 
+    -- One-time 12.1.5 disclaimer. Auto-shows the first time the window is opened
+    -- on interface 120105 (patch 12.1.5) and never again (saved account-wide),
+    -- and never on any other version.
+    local disclaimer = CreateFrame("Frame", nil, panel, "BackdropTemplate")
+    disclaimer:SetSize(460, 300)
+    disclaimer:SetPoint("CENTER", panel, "CENTER", 0, 0)
+    disclaimer:SetFrameStrata("FULLSCREEN_DIALOG")
+    disclaimer:SetFrameLevel(410)
+    disclaimer:SetBackdrop({
+        bgFile   = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 12, insets = { left=4, right=4, top=4, bottom=4 },
+    })
+    disclaimer:SetBackdropColor(0.06, 0.06, 0.06, 1)
+    disclaimer:SetBackdropBorderColor(0.8, 0.6, 0.1, 1)
+    disclaimer:EnableMouse(true)
+    disclaimer:Hide()
+
+    local disTitle = makeFontString(disclaimer, "OVERLAY", "GameFontNormalLarge")
+    disTitle:SetPoint("TOP", disclaimer, "TOP", 0, -14)
+    disTitle:SetText("|cffFFD100A note about patch 12.1.5|r")
+
+    local disText = makeFontString(disclaimer, "ARTWORK", "GameFontHighlight")
+    disText:SetPoint("TOPLEFT",  disclaimer, "TOPLEFT",  18, -44)
+    disText:SetPoint("TOPRIGHT", disclaimer, "TOPRIGHT", -18, -44)
+    disText:SetJustifyH("LEFT"); disText:SetJustifyV("TOP")
+    disText:SetWordWrap(true); disText:SetSpacing(3)
+    disText:SetText(table.concat({
+        "In patch 12.1.5, Blizzard restricted aura sound files to under five seconds. That limits part of what this addon was built for, since the longer spoken countdowns can no longer play.",
+        " ",
+        "The warning sounds still work as normal, several of the shorter countdowns are still useful, and the addon still gives you a clean way to set up per-aura warnings.",
+        " ",
+        "I'll keep the aura list updated for future seasons where I can. Some warnings may end up a little more generic, and if updates fall behind you may need to set manual timers for countdowns.",
+        " ",
+        "Thanks for using Custom Countdown Sounds.  - Knofle",
+    }, "\n"))
+
+    local disClose = CreateFrame("Button", nil, disclaimer, "UIPanelButtonTemplate")
+    disClose:SetSize(80, 22)
+    disClose:SetPoint("BOTTOM", disclaimer, "BOTTOM", 0, 12)
+    disClose:SetText("Close")
+    stripButtonBorder(disClose)
+    disClose:SetScript("OnClick", function() disclaimer:Hide() end)
+
+    -- Show once on 12.1.5 only. GetBuildInfo's 4th return is the interface number.
+    local function maybeShowDisclaimer()
+        if select(4, GetBuildInfo()) ~= 120105 then return end
+        local g = CCS.GetGlobal()
+        if g.seenDisclaimer1215 then return end
+        g.seenDisclaimer1215 = true
+        disclaimer:Show()
+        disclaimer:Raise()
+    end
+    CCS._maybeShowDisclaimer = maybeShowDisclaimer
+
     -- Bulk action group boxes
     local function makeGroupBox(parent, anchor, anchorPt, xOff, yOff, selfPt)
         local box = CreateFrame("Frame", nil, parent, "BackdropTemplate")
@@ -2981,6 +3034,7 @@ local function BuildCCSOptions(panel, isStandalone)
             fullRebuild()
         end
         if CCS._syncSettingsBox then CCS._syncSettingsBox() end
+        maybeShowDisclaimer()
     end)
 
     return panel
@@ -3083,6 +3137,29 @@ local function CreateStubPanel()
     btn:SetSize(120, 24); btn:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -20)
     btn:SetText("Open Options")
     btn:SetScript("OnClick", function() toggleStandalone() end)
+
+    -- Global sound throttle: how often the same aura sound may replay.
+    local thrTitle = makeFontString(panel, "ARTWORK", "GameFontNormal")
+    thrTitle:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -24)
+    thrTitle:SetText("Sound Throttle")
+
+    local thrDesc = makeFontString(panel, "ARTWORK", "GameFontHighlightSmall")
+    thrDesc:SetPoint("TOPLEFT", thrTitle, "BOTTOMLEFT", 0, -6)
+    thrDesc:SetWidth(500); thrDesc:SetJustifyH("LEFT"); thrDesc:SetWordWrap(true)
+    thrDesc:SetText("Minimum seconds before the same aura's sound is allowed to play again. "
+        .. "0 means no limit. Raise it if a repeating debuff spams its sound.")
+
+    local thrSlider = makeMiniSlider(panel, {
+        width = 240, height = 18, min = 0, max = 5, step = 0.5, thumbW = 46,
+        get    = function() return CCS.GetThrottle() end,
+        format = function(v) return (v <= 0) and "Off" or ("%.1fs"):format(v) end,
+        -- Re-registering every drag frame is heavy, so only apply on release.
+        onChange = function(v, done) if done then CCS.SetThrottle(v) end end,
+    })
+    thrSlider:SetPoint("TOPLEFT", thrDesc, "BOTTOMLEFT", 0, -10)
+
+    -- Reflect the saved value whenever this options page is opened.
+    panel:HookScript("OnShow", function() thrSlider:SyncValue() end)
 
     return panel
 end
