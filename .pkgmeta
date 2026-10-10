@@ -20,3 +20,6 @@ externals:
 
 move-folders:
   CustomCountdownSounds/CustomCountdownSounds: CustomCountdownSounds
+
+ignore:
+  - CustomCountdownSounds/CLAUDE.md
